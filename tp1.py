@@ -17,3 +17,6 @@ establecimientos_educativos = pd.read_excel('2022_padron_oficial_establecimiento
 centros_culturales = pd.read_csv('centros_culturales.csv')
 
 padron_poblacion = pd.read_excel('padron_poblacion.xlsx')
+
+#%%
+
