@@ -53,3 +53,53 @@ metrica01 = dd.sql(
     """
     ).df()
 
+#%% Quiero acomodar la tabla "establecimientos_educativos"        
+
+""" 
+     ###########################################
+     ##### EJECUTAR ESTA CELDA UNA SOLA VEZ!####
+     ###########################################
+"""
+
+# Asignar la fila 5 como nombres de columna
+establecimientos_educativos.columns = establecimientos_educativos.iloc[5]
+
+# Eliminar las primeras 6 filas para comenzar desde la fila 6
+establecimientos_educativos = establecimientos_educativos.iloc[6:].reset_index(drop=True)
+
+# Renombro la ultima columna  
+establecimientos_educativos.rename(columns={establecimientos_educativos.columns[-1]: "Servicios complementarios"}, inplace=True)
+
+#%% Quiero ver cuántos números de teléfono son válidos, y cuántos tienen nro de interno
+
+# Concatenar código de área y teléfono, si el código de área no es nulo
+establecimientos_educativos["Telefono_Completo"] = (
+    establecimientos_educativos["Código de área"].astype(str) +
+    establecimientos_educativos["Teléfono"].astype(str)
+)
+
+# Remover espacios extra
+establecimientos_educativos["Telefono_Completo"] = (
+    establecimientos_educativos["Telefono_Completo"].str.strip()
+)
+
+
+
+nrosvalidos = dd.sql(
+    """
+    SELECT Telefono_Completo
+    FROM establecimientos_educativos
+    WHERE LENGTH('Teléfono_Completo')  > 9 
+    AND "Telefono_Completo" NOT IN ('000', ' 00', '0', '1', '00', '-', 'sn', 's/n', '', '  -', 'ss', 's/inf.',
+                           'SN', 's/inf', 'ooooooo', 'no tiene', 'no posee',
+                           'SE CREA POR RESOL. 1707/2022 MECCyT FECHA:27/04/22',
+                           'SE CREA POR RESOL. N°1790/2021 MECCyT FECHA:10/12/21',
+                           'SECUNDARIA 4020240 / PRIMARIA 4056926')
+    AND Telefono_Completo NOT LIKE '0%'  -- Excluye cualquier número que comience con 0
+    AND Telefono_Completo IS NOT NULL
+    """
+    ).df()
+
+
+
+
