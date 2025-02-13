@@ -72,34 +72,42 @@ establecimientos_educativos.rename(columns={establecimientos_educativos.columns[
 
 #%% Quiero ver cuántos números de teléfono son válidos, y cuántos tienen nro de interno
 
-# Concatenar código de área y teléfono, si el código de área no es nulo
-establecimientos_educativos["Telefono_Completo"] = (
-    establecimientos_educativos["Código de área"].astype(str) +
-    establecimientos_educativos["Teléfono"].astype(str)
-)
+# Pasamos a str por si es null, y dsp le sacamos los espacios vacíos para evitar problemas
+establecimientos_educativos["Código de área"] = establecimientos_educativos["Código de área"].astype(str).str.strip()
+establecimientos_educativos["Teléfono"] = establecimientos_educativos["Teléfono"].astype(str).str.strip()
 
-# Remover espacios extra
-establecimientos_educativos["Telefono_Completo"] = (
-    establecimientos_educativos["Telefono_Completo"].str.strip()
-)
+# Sacamos guiones con replace
+establecimientos_educativos["Teléfono"] = establecimientos_educativos["Teléfono"].str.replace("-", "", regex=False)
 
-
-
+# Filtramos solo lo números válidos
 nrosvalidos = dd.sql(
     """
-    SELECT Telefono_Completo
+    SELECT Teléfono
     FROM establecimientos_educativos
-    WHERE LENGTH('Teléfono_Completo')  > 9 
-    AND "Telefono_Completo" NOT IN ('000', ' 00', '0', '1', '00', '-', 'sn', 's/n', '', '  -', 'ss', 's/inf.',
-                           'SN', 's/inf', 'ooooooo', 'no tiene', 'no posee',
-                           'SE CREA POR RESOL. 1707/2022 MECCyT FECHA:27/04/22',
-                           'SE CREA POR RESOL. N°1790/2021 MECCyT FECHA:10/12/21',
-                           'SECUNDARIA 4020240 / PRIMARIA 4056926')
-    AND Telefono_Completo NOT LIKE '0%'  -- Excluye cualquier número que comience con 0
-    AND Telefono_Completo IS NOT NULL
+    WHERE LENGTH(Teléfono) > 5
+    AND Teléfono NOT IN ('0', '1', '-', 'sn', 's/n', '', ' ', '.', 'ss', 's/inf.', 'S/Inf.',
+                         'SN', 'S/N', 's/inf', 'ooooooo', 'no tiene', 'no posee', 'None', 'No posee',
+                         '999999', '9999999', '99999999', '999999999', 'CAB.PUB.80260',
+                         'NO POSEE', 
+                         'RED OFICIAL 978',
+                         'SE CREA POR RESOL. 1707/2022 MECCyT FECHA:27/04/22',
+                         'SE CREA POR RESOL. N°1790/2021 MECCyT FECHA:10/12/21')
+    AND Teléfono NOT LIKE '00%'  -- Sacámos los nros que empiezan con 00
+    AND Teléfono NOT LIKE '%*'
+    AND Teléfono NOT LIKE '*%'
+    AND Teléfono IS NOT NULL
+    """
+).df()
+
+# METRICA PARA LA CALIDAD DEL DATO 'Teléfono' EN LA TABLA 'establecimientos_educativos'
+# CDAD DE ESCUELAS SIN NUMERO DE TELEFONO VÁLIDO
+
+metrica02 = dd.sql(
+    """
+    SELECT 100 - (COUNT(*) * 100 / (SELECT COUNT(*) FROM establecimientos_educativos)) AS proporcion
+    FROM nrosvalidos 
     """
     ).df()
 
 
-
-
+#%% 
