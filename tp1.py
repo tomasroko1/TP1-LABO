@@ -20,13 +20,8 @@ padron_poblacion = pd.read_excel('padron_poblacion.xlsx')
 
 #%%
 
-""" ANOTACIONES (ELIMINAR AL FINAL)
-
-1) La base de datos 'padron_población' ES MALÍSIMA. No solo porque las cosas no están organizadas como corresponde,
-si no porque usan un código de area identificador que por lo que estuve viendo NO ES el mismo que el codigo que tienen
-'censos_culturales' y 'padron_poblacion' llamado 'Cod_loc' que parece ser el código de 'localidad censal'
-
-2) El objetivo del informe es analizar la relación que hay entre #centros educativos y #centros culturales
+""" 
+     El objetivo del informe es analizar la relación que hay entre #centros educativos y #centros culturales
     en cada PROVINCIA. Por lo tanto, el dato de 'departamento' no nos va a importar, tampoco el de 'localidad'
 
 """
@@ -39,6 +34,13 @@ consultaSQL = dd.sql(
     """
     ).df()
 
+#%% 
+
+""" 
+     ###########################################
+     #####      Procesamiento de Datos      ####
+     ###########################################
+"""
 
 # Elimino el espacio vacío en 'Mail '
 centros_culturales.columns = centros_culturales.columns.str.strip()
@@ -57,7 +59,7 @@ metrica01 = dd.sql(
 
 """ 
      ###########################################
-     ##### EJECUTAR ESTA CELDA UNA SOLA VEZ!####
+     ##### Ejecutar esta celda una sola vez ####
      ###########################################
 """
 
@@ -110,4 +112,122 @@ metrica02 = dd.sql(
     ).df()
 
 
-#%% 
+#%%  
+
+""" 
+     ###########################################
+     #####        Padrón Población         #####
+     ###########################################
+"""
+
+def calcular_largo_areas():
+    # Lista que va a contener el largo de cada tabla Area (nombre del área y cantidad de filas)
+    largo_areas = []
+
+    i = 0
+    total_filas = len(padron_poblacion)
+
+    # Recorremos el dataframe paron_poblacion saltando de a 80 filas ( Saltamos de a 80 porque no hay Áreas con mas de 80 registros)
+    while i < total_filas:
+        # Buscamos la aparicion de "AREA #" para determinar el largo de la tabla
+        
+        sub_df = padron_poblacion.iloc[i:min(i + 80, total_filas)]  
+        area_fila = sub_df[sub_df["Unnamed: 1"].astype(str).str.startswith("AREA #", na=False)]
+
+        if not area_fila.empty:
+            # Obtener el índice de la fila del área
+            area_index = area_fila.index[0]
+            area_name = padron_poblacion.loc[area_index, "Unnamed: 1"]
+
+            # Contar filas hasta el  próximo "AREA #"
+            fila_actual = area_index + 2  # Saltamos 2 filas después del área (Todas las tablas arrancan dos filas despues del 'AREA #')
+            contador = -3 # Corrijo un desface que me produce la función al final (por eso arranco de -3, pues todas las areas tenían 3 mas que el largo real)
+
+            while fila_actual < total_filas:
+                if isinstance(padron_poblacion.loc[fila_actual, "Unnamed: 1"], str) and "AREA #" in padron_poblacion.loc[fila_actual, "Unnamed: 1"]:
+                    break  # Paramos de contar si encontramos un área
+                contador += 1
+                fila_actual += 1
+
+            largo_areas.append((area_name, contador))
+            i = fila_actual
+    
+
+    # A ESTO LO HAGO PORQUE SE CONFUNDE EL PROGRAMA CON EL FINAL DE TODO (porque al final esta el resumen)
+    largo_areas[len(largo_areas)-1] = tuple(('AREA # 94015', 102))
+
+    return largo_areas
+
+areas_info = calcular_largo_areas()
+
+#%%
+
+def extraer_bloques_variable_longitudes(
+    df,
+    areas_info,
+    start_index=15,  # Arranca en df.iloc[15] (0-based)
+    skip_size=5
+):
+    """
+    df: DataFrame original.
+    areas_info: lista de tuplas (nombre_area, largo), en orden. 
+                Ej: [("AREA # 02007", 110), ("AREA # 02014", 108), ...]
+    start_index: índice 0-based donde empezar. Si queremos que la 'primera fila' 
+                 sea la 15 contando desde 0, ponemos 15.
+    skip_size: cuántas filas saltear tras cada bloque.
+
+    Devuelve: DataFrame concatenado de todos los bloques, 
+              con una columna 'Area' que indica el nombre de área.
+    """
+    # Asegurar que el índice sea 0..N consecutivo
+    df = df.reset_index(drop=True)
+    
+    current_index = start_index
+    blocks = []
+    
+    for area_label, length in areas_info:
+        # Verifica si hay suficientes filas para tomar 'length' desde current_index
+        if current_index + length > len(df):
+            # No hay más filas suficientes, cortamos aquí
+            break
+        
+        # Extraer 'length' filas
+        bloque = df.iloc[current_index : current_index + length].copy()
+        
+        # Asignar el nombre de área
+        bloque['Area'] = area_label
+        
+        blocks.append(bloque)
+        
+        # Avanzar el puntero length + skip_size
+        current_index += length + skip_size
+    
+    # Unir todos los bloques en un DataFrame
+    if blocks:
+        return pd.concat(blocks, ignore_index=True)
+    else:
+        return pd.DataFrame()
+
+
+df_filtrado = extraer_bloques_variable_longitudes(padron_poblacion, areas_info)
+
+#%%
+
+# saco la 1ra columna de nulls
+df_filtrado.drop(columns=['CEPAL/CELADE Redatam+SP 01/30/2025'], inplace=True)
+
+# renomnramos las columnas 
+df_filtrado.rename(columns={
+    'Unnamed: 1': 'Edad',
+    'Unnamed: 2': 'Casos',
+    'Unnamed: 3': '%',
+    'Unnamed: 4': 'Acumulado %'
+}, inplace=True)
+
+
+# Saco los 'AREA #' y lo pasamos a int
+df_filtrado['Area'] = df_filtrado['Area'].str.replace(r'\D', '', regex=True).astype(int)
+
+#%%
+
+
