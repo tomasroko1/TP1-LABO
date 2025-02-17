@@ -72,6 +72,35 @@ establecimientos_educativos = establecimientos_educativos.iloc[6:].reset_index(d
 # Renombro la ultima columna  
 establecimientos_educativos.rename(columns={establecimientos_educativos.columns[-1]: "Servicios complementarios"}, inplace=True)
 
+# Me quedo con las columnas que quiero
+establecimientos_educativos = establecimientos_educativos.iloc[:, [0, 1, 2, 9, 11, 12, 20, 21, 22, 23, 24]]
+
+# Pasemos el código de area a int / agrego AREA A EE
+
+establecimientos_educativos['Código de localidad'] = establecimientos_educativos['Código de localidad'].astype(int)
+establecimientos_educativos.rename(columns = {'Código de localidad':'cod_loc'}, inplace = True)
+
+# Agrego la columna Area
+
+establecimientos_educativos['Area'] = establecimientos_educativos['cod_loc'].astype(str).str[:5]
+
+# Reemplacemos los vacíos en los niveles educativos por 0
+
+cols = [
+    "Nivel inicial - Jardín maternal",
+    "Nivel inicial - Jardín de infantes",
+    "Primario",
+    "Secundario",
+    "Secundario - INET"
+]
+
+establecimientos_educativos.loc[:, cols] = (
+    establecimientos_educativos.loc[:, cols]
+    .replace({' ': 0, '': 0})
+    .fillna(0)
+    .astype(int)
+)
+
 #%% Quiero ver cuántos números de teléfono son válidos, y cuántos tienen nro de interno
 
 # Pasamos a str por si es null, y dsp le sacamos los espacios vacíos para evitar problemas
@@ -137,7 +166,8 @@ def calcular_largo_areas():
         if not area_fila.empty:
             # Obtener el índice de la fila del área
             area_index = area_fila.index[0]
-            area_name = padron_poblacion.loc[area_index, "Unnamed: 1"]
+            codigo_area = padron_poblacion.loc[area_index, "Unnamed: 1"]
+            nombre_area = padron_poblacion.loc[area_index, "Unnamed: 2"]
 
             # Contar filas hasta el  próximo "AREA #"
             fila_actual = area_index + 2  # Saltamos 2 filas después del área (Todas las tablas arrancan dos filas despues del 'AREA #')
@@ -149,12 +179,12 @@ def calcular_largo_areas():
                 contador += 1
                 fila_actual += 1
 
-            largo_areas.append((area_name, contador))
+            largo_areas.append((codigo_area, nombre_area, contador))
             i = fila_actual
     
 
     # A ESTO LO HAGO PORQUE SE CONFUNDE EL PROGRAMA CON EL FINAL DE TODO (porque al final esta el resumen)
-    largo_areas[len(largo_areas)-1] = tuple(('AREA # 94015', 102))
+    largo_areas[len(largo_areas)-1] = tuple(('AREA # 94015', 'Ushuaia', 102))
 
     return largo_areas
 
@@ -185,7 +215,7 @@ def extraer_bloques_variable_longitudes(
     current_index = start_index
     blocks = []
     
-    for area_label, length in areas_info:
+    for codigo_area, nombre_area, length in areas_info:
         # Verifica si hay suficientes filas para tomar 'length' desde current_index
         if current_index + length > len(df):
             # No hay más filas suficientes, cortamos aquí
@@ -194,8 +224,11 @@ def extraer_bloques_variable_longitudes(
         # Extraer 'length' filas
         bloque = df.iloc[current_index : current_index + length].copy()
         
-        # Asignar el nombre de área
-        bloque['Area'] = area_label
+        # Asignamos el nombre y el código del área
+        bloque['Area'] = codigo_area
+        bloque['Descripción'] = nombre_area
+        
+        
         
         blocks.append(bloque)
         
@@ -228,6 +261,57 @@ df_filtrado.rename(columns={
 # Saco los 'AREA #' y lo pasamos a int
 df_filtrado['Area'] = df_filtrado['Area'].str.replace(r'\D', '', regex=True).astype(int)
 
+#%% 
+
+""" 
+     ###########################################
+     #####        Consultas SQL           #####
+     ###########################################
+"""
+
+# i) Jadrín maternal hasta los 2 años (VER LO DE LOS 45 DIAS)
+#    Jardín de infantes de 3 a 5 
+
+
+# LA QUE VA ES RELACIONAR EL CODIGO DE LOCALIDAD CON EL AREA
+
 #%%
 
+consulta1 = dd.sql(
+            """
+    SELECT 
+        Jurisdicción AS Provincia,
+        Departamento,
+        Area,
+        SUM(CASE WHEN "Nivel inicial - Jardín maternal" = 1 OR "Nivel inicial - Jardín de infantes" = 1 THEN 1 ELSE 0 END) AS Jardines,
+        SUM(CASE WHEN "Primario" = 1 THEN 1 ELSE 0 END) AS Primarios,
+        SUM(CASE WHEN "Secundario" = 1 OR "Secundario - INET" = 1 THEN 1 ELSE 0 END) AS Secundarios
+    FROM establecimientos_educativos
+    GROUP BY Area, Departamento, Jurisdicción
+            """).df()
+                     
+# Area y poblaciones estudiantiles de c/area
+consulta2 = dd.sql(
+            """
+    SELECT 
+        Area,
+        SUM(CASE WHEN Edad BETWEEN 0 AND 5 THEN Casos ELSE 0 END) AS 'poblacion_jardin',
+        SUM(CASE WHEN Edad BETWEEN 6 AND 11 THEN Casos ELSE 0 END) AS 'poblacion_primaria',
+        SUM(CASE WHEN Edad BETWEEN 12 AND 18 THEN Casos ELSE 0 END) AS 'poblacion_secundaria'
+        
+    FROM df_filtrado
+    GROUP BY Area
+    
+            """).df()
+
+ejercicio_i = dd.sql("""
+                     SELECT Provincia, Departamento,
+                     Jardines, poblacion_jardin AS'Población Jardín',
+                     Primarios, poblacion_primaria AS 'Población Primaria',
+                     Secundarios, poblacion_secundaria AS 'Población Secundaria'
+                     
+                     FROM consulta1 AS c1
+                     INNER JOIN consulta2 AS c2
+                     ON c1.Area = c2.Area 
+                     """).df()
 
