@@ -260,6 +260,7 @@ df_filtrado.rename(columns={
 
 # Saco los 'AREA #' y lo pasamos a int
 df_filtrado['Area'] = df_filtrado['Area'].str.replace(r'\D', '', regex=True).astype(int)
+df_filtrado['Area'] = df_filtrado['Area'].astype(str).apply(lambda x: x + '0' if len(x) == 4 else x)
 
 #%% 
 
@@ -286,10 +287,11 @@ consulta1 = dd.sql(
         SUM(CASE WHEN "Nivel inicial - Jardín maternal" = 1 OR "Nivel inicial - Jardín de infantes" = 1 THEN 1 ELSE 0 END) AS Jardines,
         SUM(CASE WHEN "Primario" = 1 THEN 1 ELSE 0 END) AS Primarios,
         SUM(CASE WHEN "Secundario" = 1 OR "Secundario - INET" = 1 THEN 1 ELSE 0 END) AS Secundarios
+        
     FROM establecimientos_educativos
     GROUP BY Area, Departamento, Jurisdicción
             """).df()
-                     
+            
 # Area y poblaciones estudiantiles de c/area
 consulta2 = dd.sql(
             """
@@ -309,9 +311,20 @@ ejercicio_i = dd.sql("""
                      Jardines, poblacion_jardin AS'Población Jardín',
                      Primarios, poblacion_primaria AS 'Población Primaria',
                      Secundarios, poblacion_secundaria AS 'Población Secundaria'
-                     
                      FROM consulta1 AS c1
-                     INNER JOIN consulta2 AS c2
+                     JOIN consulta2 AS c2
                      ON c1.Area = c2.Area 
                      """).df()
+                     
+sub_consulta_ejercicio_ii = dd.sql("""
+                    SELECT *
+                    FROM centros_culturales
+                    WHERE Capacidad > 100.0
+                    """).df()
 
+ejercicio_ii = dd.sql("""
+                    SELECT Provincia, Departamento, COUNT(*) AS Cantidad
+                    FROM sub_consulta_ejercicio_ii
+                    GROUP BY Provincia, Departamento
+                    ORDER BY Provincia ASC, Cantidad DESC
+                    """).df()
