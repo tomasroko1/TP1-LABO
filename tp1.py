@@ -18,29 +18,15 @@ centros_culturales = pd.read_csv('centros_culturales.csv')
 
 padron_poblacion = pd.read_excel('padron_poblacion.xlsx')
 
+#%% 
+""" 
+                                 ###########################################
+                                 #####      Procesamiento de Datos      ####
+                                 ###########################################
+"""
 #%%
 
-""" 
-     El objetivo del informe es analizar la relación que hay entre #centros educativos y #centros culturales
-    en cada PROVINCIA. Por lo tanto, el dato de 'departamento' no nos va a importar, tampoco el de 'localidad'
-
-"""
-
-# CHEQUEO QUE ESTO SEA UNA CLAVE
-consultaSQL = dd.sql(
-    """
-    SELECT DISTINCT Nombre, Latitud, Longitud
-    FROM centros_culturales
-    """
-    ).df()
-
-#%% 
-
-""" 
-     ###########################################
-     #####      Procesamiento de Datos      ####
-     ###########################################
-"""
+"""--------------------------------------Métrica 1 - Centros Culturales---------------------------------------------"""
 
 # Elimino el espacio vacío en 'Mail '
 centros_culturales.columns = centros_culturales.columns.str.strip()
@@ -54,20 +40,56 @@ metrica01 = dd.sql(
     OR (Mail IN ('-', 's/d'))
     """
     ).df()
+"""-----------------------------------------------------------------------------------------------------------------"""
 
-#%% Quiero acomodar la tabla "establecimientos_educativos"        
+#%%
 
-""" 
-     ###########################################
-     ##### Ejecutar esta celda una sola vez ####
-     ###########################################
-"""
-
+"""----------------------------------------Establecimientos Educativos----------------------------------------------"""
 # Asignar la fila 5 como nombres de columna
 establecimientos_educativos.columns = establecimientos_educativos.iloc[5]
 
 # Eliminar las primeras 6 filas para comenzar desde la fila 6
 establecimientos_educativos = establecimientos_educativos.iloc[6:].reset_index(drop=True)
+
+# Pasamos a str por si es null, y dsp le sacamos los espacios vacíos para evitar problemas
+establecimientos_educativos["Código de área"] = establecimientos_educativos["Código de área"].astype(str).str.strip()
+establecimientos_educativos["Teléfono"] = establecimientos_educativos["Teléfono"].astype(str).str.strip()
+
+# Sacamos guiones con replace
+establecimientos_educativos["Teléfono"] = establecimientos_educativos["Teléfono"].str.replace("-", "", regex=False)
+
+# Filtramos solo lo números válidos
+nrosvalidos = dd.sql(
+    """
+    SELECT Teléfono
+    FROM establecimientos_educativos
+    WHERE LENGTH(Teléfono) > 5
+    AND Teléfono NOT IN ('0', '1', '-', 'sn', 's/n', '', ' ', '.', 'ss', 's/inf.', 'S/Inf.',
+                         'SN', 'S/N', 's/inf', 'ooooooo', 'no tiene', 'no posee', 'None', 'No posee',
+                         '999999', '9999999', '99999999', '999999999', 'CAB.PUB.80260',
+                         'NO POSEE', 
+                         'RED OFICIAL 978',
+                         'SE CREA POR RESOL. 1707/2022 MECCyT FECHA:27/04/22',
+                         'SE CREA POR RESOL. N°1790/2021 MECCyT FECHA:10/12/21')
+    AND Teléfono NOT LIKE '00%'  -- Sacámos los nros que empiezan con 00
+    AND Teléfono NOT LIKE '%*'
+    AND Teléfono NOT LIKE '*%'
+    AND Teléfono IS NOT NULL
+    """
+).df()
+
+# METRICA PARA LA CALIDAD DEL DATO 'Teléfono' EN LA TABLA 'establecimientos_educativos'
+# CDAD DE ESCUELAS SIN NUMERO DE TELEFONO VÁLIDO
+
+
+
+"""--------------------------------------Métrica 2------------------------------------------------------------------"""
+metrica02 = dd.sql(
+    """
+    SELECT 100 - (COUNT(*) * 100 / (SELECT COUNT(*) FROM establecimientos_educativos)) AS proporcion
+    FROM nrosvalidos 
+    """
+    ).df()
 
 # Renombro la ultima columna  
 establecimientos_educativos.rename(columns={establecimientos_educativos.columns[-1]: "Servicios complementarios"}, inplace=True)
@@ -101,53 +123,9 @@ establecimientos_educativos.loc[:, cols] = (
     .astype(int)
 )
 
-#%% Quiero ver cuántos números de teléfono son válidos, y cuántos tienen nro de interno
+#%%
 
-# Pasamos a str por si es null, y dsp le sacamos los espacios vacíos para evitar problemas
-establecimientos_educativos["Código de área"] = establecimientos_educativos["Código de área"].astype(str).str.strip()
-establecimientos_educativos["Teléfono"] = establecimientos_educativos["Teléfono"].astype(str).str.strip()
-
-# Sacamos guiones con replace
-establecimientos_educativos["Teléfono"] = establecimientos_educativos["Teléfono"].str.replace("-", "", regex=False)
-
-# Filtramos solo lo números válidos
-nrosvalidos = dd.sql(
-    """
-    SELECT Teléfono
-    FROM establecimientos_educativos
-    WHERE LENGTH(Teléfono) > 5
-    AND Teléfono NOT IN ('0', '1', '-', 'sn', 's/n', '', ' ', '.', 'ss', 's/inf.', 'S/Inf.',
-                         'SN', 'S/N', 's/inf', 'ooooooo', 'no tiene', 'no posee', 'None', 'No posee',
-                         '999999', '9999999', '99999999', '999999999', 'CAB.PUB.80260',
-                         'NO POSEE', 
-                         'RED OFICIAL 978',
-                         'SE CREA POR RESOL. 1707/2022 MECCyT FECHA:27/04/22',
-                         'SE CREA POR RESOL. N°1790/2021 MECCyT FECHA:10/12/21')
-    AND Teléfono NOT LIKE '00%'  -- Sacámos los nros que empiezan con 00
-    AND Teléfono NOT LIKE '%*'
-    AND Teléfono NOT LIKE '*%'
-    AND Teléfono IS NOT NULL
-    """
-).df()
-
-# METRICA PARA LA CALIDAD DEL DATO 'Teléfono' EN LA TABLA 'establecimientos_educativos'
-# CDAD DE ESCUELAS SIN NUMERO DE TELEFONO VÁLIDO
-
-metrica02 = dd.sql(
-    """
-    SELECT 100 - (COUNT(*) * 100 / (SELECT COUNT(*) FROM establecimientos_educativos)) AS proporcion
-    FROM nrosvalidos 
-    """
-    ).df()
-
-
-#%%  
-
-""" 
-     ###########################################
-     #####        Padrón Población         #####
-     ###########################################
-"""
+"""-------------------------------------Padrón Población------------------------------------------------------------"""
 
 def calcular_largo_areas():
     # Lista que va a contener el largo de cada tabla Area (nombre del área y cantidad de filas)
@@ -189,8 +167,6 @@ def calcular_largo_areas():
     return largo_areas
 
 areas_info = calcular_largo_areas()
-
-#%%
 
 def extraer_bloques_variable_longitudes(
     df,
@@ -242,15 +218,13 @@ def extraer_bloques_variable_longitudes(
         return pd.DataFrame()
 
 
-df_filtrado = extraer_bloques_variable_longitudes(padron_poblacion, areas_info)
-
-#%%
+padron_poblacion = extraer_bloques_variable_longitudes(padron_poblacion, areas_info)
 
 # saco la 1ra columna de nulls
-df_filtrado.drop(columns=['CEPAL/CELADE Redatam+SP 01/30/2025'], inplace=True)
+padron_poblacion.drop(columns=['CEPAL/CELADE Redatam+SP 01/30/2025'], inplace=True)
 
 # renomnramos las columnas 
-df_filtrado.rename(columns={
+padron_poblacion.rename(columns={
     'Unnamed: 1': 'Edad',
     'Unnamed: 2': 'Casos',
     'Unnamed: 3': '%',
@@ -259,15 +233,16 @@ df_filtrado.rename(columns={
 
 
 # Saco los 'AREA #' y lo pasamos a int
-df_filtrado['Area'] = df_filtrado['Area'].str.replace(r'\D', '', regex=True).astype(int)
-df_filtrado['Area'] = df_filtrado['Area'].astype(str).apply(lambda x: x + '0' if len(x) == 4 else x)
+padron_poblacion['Area'] = padron_poblacion['Area'].str.replace(r'\D', '', regex=True).astype(int)
+padron_poblacion['Area'] = padron_poblacion['Area'].astype(str).apply(lambda x: x + '0' if len(x) == 4 else x)
 
+"""-----------------------------------------------------------------------------------------------------------------"""
 #%% 
 
 """ 
-     ###########################################
-     #####        Consultas SQL           #####
-     ###########################################
+                                     ###########################
+                                     #####  Consultas SQL  ##### 
+                                     ###########################
 """
 
 # i) Jadrín maternal hasta los 2 años (VER LO DE LOS 45 DIAS)
@@ -275,8 +250,6 @@ df_filtrado['Area'] = df_filtrado['Area'].astype(str).apply(lambda x: x + '0' if
 
 
 # LA QUE VA ES RELACIONAR EL CODIGO DE LOCALIDAD CON EL AREA
-
-#%%
 
 consulta1 = dd.sql(
             """
@@ -301,7 +274,7 @@ consulta2 = dd.sql(
         SUM(CASE WHEN Edad BETWEEN 6 AND 11 THEN Casos ELSE 0 END) AS 'poblacion_primaria',
         SUM(CASE WHEN Edad BETWEEN 12 AND 18 THEN Casos ELSE 0 END) AS 'poblacion_secundaria'
         
-    FROM df_filtrado
+    FROM padron_poblacion
     GROUP BY Area
     
             """).df()
