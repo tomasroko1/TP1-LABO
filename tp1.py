@@ -23,6 +23,9 @@ padron_poblacion = pd.read_excel('padron_poblacion.xlsx')
                                  ###########################################
                                  #####      Procesamiento de Datos      ####
                                  ###########################################
+
+
+    'En las siguientes 3 celdas, nos enfoncamos en procesar los datos para que luego estén disponibles para trabajar'
 """
 #%%
 
@@ -41,6 +44,8 @@ metrica01 = dd.sql(
     """
     ).df()
 """-----------------------------------------------------------------------------------------------------------------"""
+
+centros_culturales = centros_culturales.iloc[:, [0, 1, 2, 5, 6, 8, 14, 17, 18, 22]]
 
 #%%
 
@@ -94,17 +99,22 @@ metrica02 = dd.sql(
 # Renombro la ultima columna  
 establecimientos_educativos.rename(columns={establecimientos_educativos.columns[-1]: "Servicios complementarios"}, inplace=True)
 
-# Me quedo con las columnas que quiero
-establecimientos_educativos = establecimientos_educativos.iloc[:, [0, 1, 2, 9, 11, 12, 20, 21, 22, 23, 24]]
-
-# Pasemos el código de area a int / agrego AREA A EE
-
+# Agrego la columna Area a un nuevo dataframe "informacion_escuelas"
 establecimientos_educativos['Código de localidad'] = establecimientos_educativos['Código de localidad'].astype(int)
 establecimientos_educativos.rename(columns = {'Código de localidad':'cod_loc'}, inplace = True)
 
-# Agrego la columna Area
+informacion_escuelas = establecimientos_educativos
 
-establecimientos_educativos['Area'] = establecimientos_educativos['cod_loc'].astype(str).str[:5]
+# informacion_escuelas['Area'] = informacion_escuelas['cod_loc'].astype(str).str[:5]
+
+informacion_escuelas = dd.sql("""
+                             SELECT Cueanexo, cod_loc, Jurisdicción, Departamento, Nombre
+                             FROM informacion_escuelas
+                             """).df()
+
+
+# Me quedo con las columnas que quiero
+establecimientos_educativos = establecimientos_educativos.iloc[:, [0, 1, 2, 9, 11, 12, 20, 21, 22, 23, 24]]
 
 # Reemplacemos los vacíos en los niveles educativos por 0
 
@@ -122,7 +132,6 @@ establecimientos_educativos.loc[:, cols] = (
     .fillna(0)
     .astype(int)
 )
-
 #%%
 
 """-------------------------------------Padrón Población------------------------------------------------------------"""
@@ -236,7 +245,43 @@ padron_poblacion.rename(columns={
 padron_poblacion['Area'] = padron_poblacion['Area'].str.replace(r'\D', '', regex=True).astype(int)
 padron_poblacion['Area'] = padron_poblacion['Area'].astype(str).apply(lambda x: x + '0' if len(x) == 4 else x)
 
+# Nos quedamos con los datos de interés
+padron_poblacion = padron_poblacion.iloc[:, [0, 1, 4, 5]]
+
 """-----------------------------------------------------------------------------------------------------------------"""
+#%%
+""" 
+                                     ###########################
+                                     #####  Normalización  ##### 
+                                     ###########################
+                                     
+'En las siguientes 3 celdas normalizamos los tres datasets de la manera explicada a detalle en el informe'
+"""
+#%%
+"""---------------------------------------Centros Culturales--------------------------------------------------------"""
+
+ubicacion = centros_culturales.iloc[:, [7, 8, 0]]
+
+localidad = centros_culturales.iloc[:, [0, 1, 2]]
+
+provincia = centros_culturales.iloc[:, [1, 3]]
+
+departamento = centros_culturales.iloc[:, [2, 4]]
+
+centros_culturales = centros_culturales.iloc[:, [7, 8, 5, 6, 9]]
+#%%
+"""---------------------------------------Padrón Población----------------------------------------------------------"""
+
+area_censal = padron_poblacion.iloc[:, [2, 3]]
+
+padron_poblacion = padron_poblacion.iloc[:, [2, 0, 1]]
+#%%
+"""----------------------------------Establecimientos Educativos----------------------------------------------------"""
+
+localidad_escuelas = establecimientos_educativos.iloc[:, [3, 0, 4]]
+
+establecimientos_educativos = establecimientos_educativos.iloc[:, [1, 2, 3, 5, 6, 7, 8, 9, 10]]
+
 #%% 
 
 """ 
@@ -301,3 +346,4 @@ ejercicio_ii = dd.sql("""
                     GROUP BY Provincia, Departamento
                     ORDER BY Provincia ASC, Cantidad DESC
                     """).df()
+
