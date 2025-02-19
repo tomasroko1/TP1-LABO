@@ -125,6 +125,9 @@ establecimientos_educativos.loc[:, cols] = (
     .fillna(0)
     .astype(int)
 )
+
+# Me quedo solo con aquellos EE que tengan al menos un tipo de nivel educativo común
+establecimientos_educativos = establecimientos_educativos[~(establecimientos_educativos[cols].sum(axis=1) == 0)]
 #%%
 
 """-------------------------------------Padrón Población------------------------------------------------------------"""
