@@ -16,7 +16,7 @@ establecimientos_educativos = pd.read_excel('2022_padron_oficial_establecimiento
 
 centros_culturales = pd.read_csv('centros_culturales.csv')
 
-padron_poblacion = pd.read_excel('padron_poblacion.xlsx')
+padron_poblacion = pd.read_excel('padron_poblacion.xlsX')
 
 #%% 
 """ 
@@ -45,11 +45,14 @@ metrica01 = dd.sql(
     ).df()
 """-----------------------------------------------------------------------------------------------------------------"""
 
+# Nos quedamos con las columnas de interés y cambiamos algunos tipos de datos
 centros_culturales = centros_culturales.iloc[:, [0, 1, 2, 5, 6, 8, 14, 17, 18, 22]]
+centros_culturales['Longitud'] = centros_culturales['Longitud'].astype(float)
+
 
 #%%
 
-"""----------------------------------------Establecimientos Educativos----------------------------------------------"""
+"""----------------------------------Métrica 2 - Establecimientos Educativos----------------------------------------"""
 # Asignar la fila 5 como nombres de columna
 establecimientos_educativos.columns = establecimientos_educativos.iloc[5]
 
@@ -91,7 +94,7 @@ nrosvalidos = dd.sql(
 """--------------------------------------Métrica 2------------------------------------------------------------------"""
 metrica02 = dd.sql(
     """
-    SELECT 100 - (COUNT(*) * 100 / (SELECT COUNT(*) FROM establecimientos_educativos)) AS proporcion
+    SELECT 100 - (COUNT(*) * 100 / (SELECT COUNT(*) FROM establecimientos_educativos)) AS porcentaje_invalidos
     FROM nrosvalidos 
     """
     ).df()
@@ -102,16 +105,6 @@ establecimientos_educativos.rename(columns={establecimientos_educativos.columns[
 # Agrego la columna Area a un nuevo dataframe "informacion_escuelas"
 establecimientos_educativos['Código de localidad'] = establecimientos_educativos['Código de localidad'].astype(int)
 establecimientos_educativos.rename(columns = {'Código de localidad':'cod_loc'}, inplace = True)
-
-informacion_escuelas = establecimientos_educativos
-
-# informacion_escuelas['Area'] = informacion_escuelas['cod_loc'].astype(str).str[:5]
-
-informacion_escuelas = dd.sql("""
-                             SELECT Cueanexo, cod_loc, Jurisdicción, Departamento, Nombre
-                             FROM informacion_escuelas
-                             """).df()
-
 
 # Me quedo con las columnas que quiero
 establecimientos_educativos = establecimientos_educativos.iloc[:, [0, 1, 2, 9, 11, 12, 20, 21, 22, 23, 24]]
@@ -241,9 +234,10 @@ padron_poblacion.rename(columns={
 }, inplace=True)
 
 
-# Saco los 'AREA #' y lo pasamos a int
+# Saco los 'AREA #' y lo pasamos a int, también pasamos 'casos' y 'edad' a int
 padron_poblacion['Area'] = padron_poblacion['Area'].str.replace(r'\D', '', regex=True).astype(int)
-padron_poblacion['Area'] = padron_poblacion['Area'].astype(str).apply(lambda x: x + '0' if len(x) == 4 else x)
+padron_poblacion['Casos'] = padron_poblacion['Casos'].astype(int)
+padron_poblacion['Edad'] = padron_poblacion['Edad'].astype(int)
 
 # Nos quedamos con los datos de interés
 padron_poblacion = padron_poblacion.iloc[:, [0, 1, 4, 5]]
@@ -255,7 +249,7 @@ padron_poblacion = padron_poblacion.iloc[:, [0, 1, 4, 5]]
                                      #####  Normalización  ##### 
                                      ###########################
                                      
-'En las siguientes 3 celdas normalizamos los tres datasets de la manera explicada a detalle en el informe'
+    'En las siguientes 3 celdas normalizamos los tres datasets de la manera explicada a detalle en el informe'
 """
 #%%
 """---------------------------------------Centros Culturales--------------------------------------------------------"""
@@ -266,15 +260,17 @@ localidad = centros_culturales.iloc[:, [0, 1, 2]]
 
 provincia = centros_culturales.iloc[:, [1, 3]]
 
-departamento = centros_culturales.iloc[:, [2, 4]]
+departamento = centros_culturales.iloc[:, [2, 1, 4]]
 
 centros_culturales = centros_culturales.iloc[:, [7, 8, 5, 6, 9]]
+
 #%%
 """---------------------------------------Padrón Población----------------------------------------------------------"""
 
 area_censal = padron_poblacion.iloc[:, [2, 3]]
 
 padron_poblacion = padron_poblacion.iloc[:, [2, 0, 1]]
+
 #%%
 """----------------------------------Establecimientos Educativos----------------------------------------------------"""
 
