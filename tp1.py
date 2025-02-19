@@ -48,6 +48,8 @@ metrica01 = dd.sql(
 # Nos quedamos con las columnas de interés y cambiamos algunos tipos de datos
 centros_culturales = centros_culturales.iloc[:, [0, 1, 2, 5, 6, 8, 14, 17, 18, 22]]
 centros_culturales['Longitud'] = centros_culturales['Longitud'].astype(float)
+centros_culturales["Provincia"] = centros_culturales["Provincia"].str.upper()
+centros_culturales["Departamento"] = centros_culturales["Departamento"].str.upper()
 
 
 #%%
@@ -128,6 +130,10 @@ establecimientos_educativos.loc[:, cols] = (
 
 # Me quedo solo con aquellos EE que tengan al menos un tipo de nivel educativo común
 establecimientos_educativos = establecimientos_educativos[~(establecimientos_educativos[cols].sum(axis=1) == 0)]
+
+# Pasamos a mayuscula los nombres de provincia y departamento para estandarizar
+establecimientos_educativos["Jurisdicción"] = establecimientos_educativos["Jurisdicción"].str.upper()
+establecimientos_educativos["Departamento"] = establecimientos_educativos["Departamento"].str.upper()
 #%%
 
 """-------------------------------------Padrón Población------------------------------------------------------------"""
@@ -245,6 +251,8 @@ padron_poblacion['Edad'] = padron_poblacion['Edad'].astype(int)
 # Nos quedamos con los datos de interés
 padron_poblacion = padron_poblacion.iloc[:, [0, 1, 4, 5]]
 
+# Pasamos a mayuscula los nombres de Areas para estandarizar
+padron_poblacion["Descripción"] = padron_poblacion["Descripción"].str.upper()
 """-----------------------------------------------------------------------------------------------------------------"""
 #%%
 """ 
