@@ -278,6 +278,7 @@ area_censal = padron_poblacion.iloc[:, [2, 3]].drop_duplicates()
 
 padron_poblacion = padron_poblacion.iloc[:, [2, 0, 1]].drop_duplicates()
 
+
 #%%
 """----------------------------------Establecimientos Educativos----------------------------------------------------"""
 
