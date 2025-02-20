@@ -43,7 +43,6 @@ metrica01 = dd.sql(
     OR (Mail IN ('-', 's/d'))
     """
     ).df()
-"""-----------------------------------------------------------------------------------------------------------------"""
 
 # Nos quedamos con las columnas de interés y cambiamos algunos tipos de datos
 centros_culturales = centros_culturales.iloc[:, [0, 1, 2, 5, 6, 8, 14, 17, 18, 22]]
@@ -91,9 +90,6 @@ nrosvalidos = dd.sql(
 # METRICA PARA LA CALIDAD DEL DATO 'Teléfono' EN LA TABLA 'establecimientos_educativos'
 # CDAD DE ESCUELAS SIN NUMERO DE TELEFONO VÁLIDO
 
-
-
-"""--------------------------------------Métrica 2------------------------------------------------------------------"""
 metrica02 = dd.sql(
     """
     SELECT 100 - (COUNT(*) * 100 / (SELECT COUNT(*) FROM establecimientos_educativos)) AS porcentaje_invalidos
@@ -265,29 +261,29 @@ padron_poblacion["Descripción"] = padron_poblacion["Descripción"].str.upper()
 #%%
 """---------------------------------------Centros Culturales--------------------------------------------------------"""
 
-ubicacion = centros_culturales.iloc[:, [7, 8, 0]]
+ubicacion = centros_culturales.iloc[:, [7, 8, 0]].drop_duplicates()
 
-localidad = centros_culturales.iloc[:, [0, 1, 2]]
+localidad = centros_culturales.iloc[:, [0, 1, 2]].drop_duplicates()
 
-provincia = centros_culturales.iloc[:, [1, 3]]
+provincia = centros_culturales.iloc[:, [1, 3]].drop_duplicates()
 
-departamento = centros_culturales.iloc[:, [2, 1, 4]]
+departamento = centros_culturales.iloc[:, [2, 1, 4]].drop_duplicates()
 
-centros_culturales = centros_culturales.iloc[:, [7, 8, 5, 6, 9]]
+centros_culturales = centros_culturales.iloc[:, [7, 8, 5, 6, 9]].drop_duplicates()
 
 #%%
 """---------------------------------------Padrón Población----------------------------------------------------------"""
 
-area_censal = padron_poblacion.iloc[:, [2, 3]]
+area_censal = padron_poblacion.iloc[:, [2, 3]].drop_duplicates()
 
-padron_poblacion = padron_poblacion.iloc[:, [2, 0, 1]]
+padron_poblacion = padron_poblacion.iloc[:, [2, 0, 1]].drop_duplicates()
 
 #%%
 """----------------------------------Establecimientos Educativos----------------------------------------------------"""
 
-localidad_escuelas = establecimientos_educativos.iloc[:, [3, 0, 4]]
+localidad_escuelas = establecimientos_educativos.iloc[:, [3, 0, 4]].drop_duplicates()
 
-establecimientos_educativos = establecimientos_educativos.iloc[:, [1, 2, 3, 5, 6, 7, 8, 9, 10]]
+establecimientos_educativos = establecimientos_educativos.iloc[:, [1, 2, 3, 5, 6, 7, 8, 9, 10]].drop_duplicates()
 
 #%% 
 
@@ -305,35 +301,36 @@ establecimientos_educativos = establecimientos_educativos.iloc[:, [1, 2, 3, 5, 6
 
 consulta1 = dd.sql(
             """
-    SELECT 
-        Jurisdicción AS Provincia,
-        Departamento,
-        Area,
+    SELECT Jurisdicción, Departamento,
         SUM(CASE WHEN "Nivel inicial - Jardín maternal" = 1 OR "Nivel inicial - Jardín de infantes" = 1 THEN 1 ELSE 0 END) AS Jardines,
         SUM(CASE WHEN "Primario" = 1 THEN 1 ELSE 0 END) AS Primarios,
         SUM(CASE WHEN "Secundario" = 1 OR "Secundario - INET" = 1 THEN 1 ELSE 0 END) AS Secundarios
         
     FROM establecimientos_educativos
-    GROUP BY Area, Departamento, Jurisdicción
+    JOIN localidad_escuelas 
+    ON establecimientos_educativos.cod_loc = localidad_escuelas.cod_loc
+    
+    GROUP BY Jurisdicción, Departamento
             """).df()
-            
+
 # Area y poblaciones estudiantiles de c/area
 consulta2 = dd.sql(
             """
-    SELECT 
-        Area,
+    SELECT p.Area, Descripción,
         SUM(CASE WHEN Edad BETWEEN 0 AND 5 THEN Casos ELSE 0 END) AS 'poblacion_jardin',
         SUM(CASE WHEN Edad BETWEEN 6 AND 11 THEN Casos ELSE 0 END) AS 'poblacion_primaria',
         SUM(CASE WHEN Edad BETWEEN 12 AND 18 THEN Casos ELSE 0 END) AS 'poblacion_secundaria'
         
-    FROM padron_poblacion
-    GROUP BY Area
+    FROM padron_poblacion AS p
     
+    JOIN area_censal AS a
+    ON a.Area = p.Area
+    GROUP BY p.Area, Descripción
             """).df()
 
 ejercicio_i = dd.sql("""
-                     SELECT Provincia, Departamento,
-                     Jardines, poblacion_jardin AS'Población Jardín',
+                     SELECT Jurisdicción, Departamento,
+                     Jardines, poblacion_jardin AS 'Población Jardín',
                      Primarios, poblacion_primaria AS 'Población Primaria',
                      Secundarios, poblacion_secundaria AS 'Población Secundaria'
                      FROM consulta1 AS c1
