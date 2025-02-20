@@ -261,13 +261,13 @@ padron_poblacion["Descripción"] = padron_poblacion["Descripción"].str.upper()
 #%%
 """---------------------------------------Centros Culturales--------------------------------------------------------"""
 
-ubicacion = centros_culturales.iloc[:, [7, 8, 0]].drop_duplicates()
+ubicacion_cc = centros_culturales.iloc[:, [7, 8, 0]].drop_duplicates()
 
-localidad = centros_culturales.iloc[:, [0, 1, 2]].drop_duplicates()
+localidad_cc = centros_culturales.iloc[:, [0, 1, 2]].drop_duplicates()
 
-provincia = centros_culturales.iloc[:, [1, 3]].drop_duplicates()
+provincia_cc = centros_culturales.iloc[:, [1, 3]].drop_duplicates()
 
-departamento = centros_culturales.iloc[:, [2, 1, 4]].drop_duplicates()
+departamento_cc = centros_culturales.iloc[:, [2, 1, 4]].drop_duplicates()
 
 centros_culturales = centros_culturales.iloc[:, [7, 8, 5, 6, 9]].drop_duplicates()
 
@@ -278,6 +278,13 @@ area_censal = padron_poblacion.iloc[:, [2, 3]].drop_duplicates()
 
 padron_poblacion = padron_poblacion.iloc[:, [2, 0, 1]].drop_duplicates()
 
+# Función corregida para extraer el código de provincia
+def extraer_id_provincia(Area):
+    Area = str(Area)  # Convertir a string para evitar errores
+    return Area[:2] if len(Area) == 5 else Area[:1]
+
+area_censal["ID_PROV"] = area_censal["Area"].apply(extraer_id_provincia).astype(int)
+
 
 #%%
 """----------------------------------Establecimientos Educativos----------------------------------------------------"""
@@ -286,23 +293,35 @@ localidad_escuelas = establecimientos_educativos.iloc[:, [3, 0, 4]].drop_duplica
 
 establecimientos_educativos = establecimientos_educativos.iloc[:, [1, 2, 3, 5, 6, 7, 8, 9, 10]].drop_duplicates()
 
-#%% 
+# Función corregida para extraer el código de provincia
+def extraer_id_provincia(cod_loc):
+    cod_loc = str(cod_loc)  # Convertir a string para evitar errores
+    return cod_loc[:2] if len(cod_loc) == 8 else cod_loc[:1]
 
+localidad_escuelas["ID_PROV"] = localidad_escuelas["cod_loc"].apply(extraer_id_provincia).astype(int)
+
+def extraer_id_depto(cod_loc):
+    cod_loc = str(cod_loc)  # Convertir a string para evitar errores
+    return cod_loc[:5] if len(cod_loc) == 8 else cod_loc[:4]
+
+localidad_escuelas["ID_DEPTO"] = localidad_escuelas["cod_loc"].apply(extraer_id_depto).astype(int)
+localidad_escuelas.loc[localidad_escuelas["Departamento"].isin(["RIO GRANDE", "USHUAIA"]), "ID_DEPTO"] += 1
+#%% 
 """ 
                                      ###########################
                                      #####  Consultas SQL  ##### 
                                      ###########################
 """
-
+#%%
 # i) Jadrín maternal hasta los 2 años (VER LO DE LOS 45 DIAS)
 #    Jardín de infantes de 3 a 5 
 
 
 # LA QUE VA ES RELACIONAR EL CODIGO DE LOCALIDAD CON EL AREA
-
-consulta1 = dd.sql(
+"""------------------------------------------Ejercicio i)-----------------------------------------------------------"""
+cantidad_ee = dd.sql(
             """
-    SELECT Jurisdicción, Departamento,
+    SELECT ID_PROV, ID_DEPTO, Jurisdicción, Departamento,
         SUM(CASE WHEN "Nivel inicial - Jardín maternal" = 1 OR "Nivel inicial - Jardín de infantes" = 1 THEN 1 ELSE 0 END) AS Jardines,
         SUM(CASE WHEN "Primario" = 1 THEN 1 ELSE 0 END) AS Primarios,
         SUM(CASE WHEN "Secundario" = 1 OR "Secundario - INET" = 1 THEN 1 ELSE 0 END) AS Secundarios
@@ -311,13 +330,13 @@ consulta1 = dd.sql(
     JOIN localidad_escuelas 
     ON establecimientos_educativos.cod_loc = localidad_escuelas.cod_loc
     
-    GROUP BY Jurisdicción, Departamento
+    GROUP BY ID_PROV, ID_DEPTO, Jurisdicción, Departamento
             """).df()
-
+            
 # Area y poblaciones estudiantiles de c/area
-consulta2 = dd.sql(
+cantidad_alumnos = dd.sql(
             """
-    SELECT p.Area, Descripción,
+    SELECT p.Area, ID_PROV, Descripción,
         SUM(CASE WHEN Edad BETWEEN 0 AND 5 THEN Casos ELSE 0 END) AS 'poblacion_jardin',
         SUM(CASE WHEN Edad BETWEEN 6 AND 11 THEN Casos ELSE 0 END) AS 'poblacion_primaria',
         SUM(CASE WHEN Edad BETWEEN 12 AND 18 THEN Casos ELSE 0 END) AS 'poblacion_secundaria'
@@ -326,28 +345,67 @@ consulta2 = dd.sql(
     
     JOIN area_censal AS a
     ON a.Area = p.Area
-    GROUP BY p.Area, Descripción
+    GROUP BY ID_PROV, Descripción, p.Area
             """).df()
-
+                                          
+# Unimos por id a nivel nación y por nombres en CABA debido a las discrepancias en los códigos
 ejercicio_i = dd.sql("""
                      SELECT Jurisdicción, Departamento,
                      Jardines, poblacion_jardin AS 'Población Jardín',
                      Primarios, poblacion_primaria AS 'Población Primaria',
                      Secundarios, poblacion_secundaria AS 'Población Secundaria'
-                     FROM consulta1 AS c1
-                     JOIN consulta2 AS c2
-                     ON c1.Area = c2.Area 
+                     FROM cantidad_ee AS ce
+                     JOIN cantidad_alumnos AS ca
+                     ON ce.ID_PROV = ca.ID_PROV
+                     WHERE ce.ID_DEPTO = ca.Area
+                UNION
+                     SELECT Jurisdicción, Departamento,
+                     Jardines, poblacion_jardin AS 'Población Jardín',
+                     Primarios, poblacion_primaria AS 'Población Primaria',
+                     Secundarios, poblacion_secundaria AS 'Población Secundaria'
+                     FROM cantidad_ee AS ce
+                     JOIN cantidad_alumnos AS ca
+                     ON ce.Departamento = ca.Descripción
+                     WHERE Jurisdicción = 'CIUDAD DE BUENOS AIRES'
                      """).df()
-                     
-sub_consulta_ejercicio_ii = dd.sql("""
+                
+#%%
+"""------------------------------------------Ejercicio ii)----------------------------------------------------------"""
+
+consulta_ubicacion = dd.sql("""
                     SELECT *
-                    FROM centros_culturales
+                    FROM centros_culturales AS c
+                    
+                    JOIN ubicacion_cc AS u
+                    ON u.Latitud = c.Latitud
+                    WHERE u.Longitud = c.Longitud
+                    """).df()
+                    
+consulta_localidad = dd.sql("""
+                    SELECT ID_PROV, ID_DEPTO, Cod_Loc
+                    FROM consulta_ubicacion AS c
+                    JOIN localidad_cc AS l
+                    ON l.Cod_Loc = c.Cod_Loc             
+                    """).df()                    
+                                    
+consulta_departamento = dd.sql("""
+                    SELECT *
+                    FROM consulta_localidad AS c
+                    JOIN departamento_cc AS d
+                    ON d.ID_DEPTO = c.ID_DEPTO 
+                    """).df()
+
+consulta_departamento = dd.sql("""
+                    SELECT *
+                    FROM consulta_departamento AS c
+                    JOIN provincia_cc AS p
+                    ON p.ID_PROV = c.ID_PROV 
                     WHERE Capacidad > 100.0
                     """).df()
 
 ejercicio_ii = dd.sql("""
                     SELECT Provincia, Departamento, COUNT(*) AS Cantidad
-                    FROM sub_consulta_ejercicio_ii
+                    FROM consulta_departamento
                     GROUP BY Provincia, Departamento
                     ORDER BY Provincia ASC, Cantidad DESC
                     """).df()
