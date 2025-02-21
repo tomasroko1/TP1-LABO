@@ -13,7 +13,7 @@ import duckdb as dd
 #%%   Cargamos los archivos
 
 establecimientos_educativos = pd.read_excel('2022_padron_oficial_establecimientos_educativos.xlsx')
-
+#940011
 centros_culturales = pd.read_csv('centros_culturales.csv')
 
 padron_poblacion = pd.read_excel('padron_poblacion.xlsX')
@@ -100,6 +100,9 @@ establecimientos_educativos.columns = establecimientos_educativos.iloc[5]
 
 # Eliminar las primeras 6 filas para comenzar desde la fila 6
 establecimientos_educativos = establecimientos_educativos.iloc[6:].reset_index(drop=True)
+
+# El departamento de TOLHUIN estaba mal cargado como dato y estaba en 'Localidad' por error. Lo corregimos
+establecimientos_educativos.loc[establecimientos_educativos['Localidad'] == 'TOLHUIN', ['Departamento', 'Código de localidad']] = ['TOLHUIN', 94011010]
 
 # Pasamos a str por si es null, y dsp le sacamos los espacios vacíos para evitar problemas
 establecimientos_educativos["Código de área"] = establecimientos_educativos["Código de área"].astype(str).str.strip()
@@ -331,7 +334,7 @@ centros_culturales = centros_culturales.iloc[:, [7, 8, 5, 9]].drop_duplicates()
 """----------------------------------Establecimientos Educativos----------------------------------------------------"""
 localidad_ee = establecimientos_educativos.iloc[:, [1, 3, 4, 5]].drop_duplicates()
 
-establecimientos_educativos = establecimientos_educativos.iloc[:, [1, 2, 7, 8, 9, 10]].drop_duplicates()
+establecimientos_educativos = establecimientos_educativos.iloc[:, [1, 2, 6, 7, 8, 9, 10]].drop_duplicates()
 
 # Función corregida para extraer el código de provincia
 def extraer_id_provincia(cod_loc):
@@ -397,6 +400,7 @@ departamento = pd.concat([departamento, area_censal], ignore_index=True).drop_du
 del area_censal
 
 departamento = departamento.drop_duplicates(subset=['ID_PROV', 'ID_DEPTO'], keep='first')
+
 
 padron_poblacion = padron_poblacion.rename(columns={'Area': 'ID_DEPTO'})
 
@@ -464,43 +468,87 @@ ejercicio_i = dd.sql("""
 #%%
 """------------------------------------------Ejercicio ii)----------------------------------------------------------"""
 
-consulta_ubicacion = dd.sql("""
-                    SELECT *
-                    FROM centros_culturales AS c
-                    
-                    JOIN ubicacion_cc AS u
-                    ON u.Latitud = c.Latitud
-                    WHERE u.Longitud = c.Longitud
-                    """).df()
-                    
-consulta_localidad = dd.sql("""
-                    SELECT ID_PROV, ID_DEPTO, c.Cod_Loc, Capacidad
-                    FROM consulta_ubicacion AS c
-                    JOIN localidad_cc AS l
-                    ON l.Cod_Loc = c.Cod_Loc             
-                    """).df()                    
-                                    
-consulta_departamento = dd.sql("""
-                    SELECT *
-                    FROM consulta_localidad AS c
-                    JOIN departamento_cc AS d
-                    ON d.ID_DEPTO = c.ID_DEPTO 
-                    """).df()
+centros_con_cap_mayor_a_100 = dd.sql("""
+                                 	SELECT Latitud, Longitud, Nombre, Capacidad
+                                 	FROM centros_culturales
+                                 	WHERE 100 < Capacidad """).df()
 
-consulta_departamento = dd.sql("""
-                    SELECT *
-                    FROM consulta_departamento AS c
-                    JOIN provincia_cc AS p
-                    ON p.ID_PROV = c.ID_PROV 
-                    WHERE Capacidad > 100.0
-                    """).df()
-
+consulta_ids = dd.sql("""
+                	SELECT *
+                	FROM centros_con_cap_mayor_a_100 AS c
+                	JOIN localidad_cc AS loc
+                	ON loc.Latitud = c.Latitud
+                	WHERE loc.Longitud = c.Longitud
+                	""").df()
+               	 
+               	 
+#UNIR CC, LOCALIDAD_CC, CON ID_PROV, ID_DEPTO               	 
+consulta_provincia_cc = dd.sql("""
+                	SELECT Latitud, Longitud, Nombre, provincia, ID_DEPTO
+                	FROM consulta_ids AS c
+                	JOIN provincia AS p
+                	ON p.ID_PROV = c.ID_PROV
+                	""").df()               	 
+                               	 
 ejercicio_ii = dd.sql("""
-                    SELECT Provincia, Departamento, COUNT(*) AS Cantidad
-                    FROM consulta_departamento
-                    GROUP BY Provincia, Departamento
-                    ORDER BY Provincia ASC, Cantidad DESC
-                    """).df()
+                	SELECT provincia, departamento, count(*) as Cantidad
+                	FROM consulta_provincia_cc AS c
+                	JOIN departamento AS d
+                	ON d.ID_DEPTO = c.ID_DEPTO
+                	GROUP BY Provincia, Departamento
+                	ORDER BY Provincia ASC, Cantidad DESC
+                	""").df()
+
+#%%
+"""------------------------------------------Ejercicio iii)---------------------------------------------------------"""
+
+
+cantidad_cc_por_deptos = dd.sql("""
+                	SELECT ID_PROV, ID_DEPTO, count(*) as cc_por_depto
+                	FROM centros_culturales AS c
+                	JOIN localidad_cc AS loc
+                	ON loc.Latitud = c.Latitud
+                	WHERE loc.Longitud = c.Longitud
+                	GROUP BY ID_DEPTO, ID_PROV
+                	""").df()
+               	 
+cantidad_ee_por_deptos = dd.sql("""
+                 	SELECT ID_DEPTO, ID_PROV, count(*) as ee_por_depto
+                 	FROM localidad_ee
+                 	GROUP BY ID_DEPTO, ID_PROV
+                 	""").df()
+                	 
+total_pob_por_depto = dd.sql("""
+                         	SELECT ID_DEPTO, SUM(Casos) as poblacion
+                         	FROM padron_poblacion
+                         	GROUP BY ID_DEPTO
+                         	""").df()    
+                        	 
+total_pob_por_depto_con_nombre = dd.sql("""
+                                  	SELECT Provincia, Departamento, Poblacion, d.ID_DEPTO
+                                  	FROM departamento AS d                             	 
+                                  	LEFT OUTER JOIN total_pob_por_depto AS t
+                                  	ON d.ID_DEPTO = t.ID_DEPTO
+                                 	 
+                                  	LEFT OUTER JOIN provincia AS p
+                                  	ON d.ID_PROV = p.ID_PROV                                 	 
+                                  	""").df()
+               	 
+ejercicio_iii = dd.sql("""
+                               	SELECT t.Provincia, t.Departamento, ee_por_depto,
+                               	CASE WHEN cc_por_depto IS NULL
+                                          	THEN 0
+                                          	ELSE cc_por_depto
+                                      	END AS cc_por_depto, t.poblacion,
+                              	 
+                               	FROM total_pob_por_depto_con_nombre AS t
+                               	LEFT OUTER JOIN cantidad_ee_por_deptos as e
+                               	ON t.ID_DEPTO = e.ID_DEPTO
+                              	 
+                               	LEFT OUTER JOIN cantidad_cc_por_deptos as c
+                               	ON t.ID_DEPTO = c.ID_DEPTO
+                               	ORDER BY ee_por_depto DESC, cc_por_depto DESC, t.Provincia ASC, t.Departamento ASC
+                               	""").df()
 
 #%%
 """------------------------------------------Ejercicio iv)----------------------------------------------------------"""
@@ -529,19 +577,23 @@ mails_con_depto = dd.sql("""
                         """).df()
                         
 provincia_depto_mail_dominio  = dd.sql("""
-                        SELECT c1.Provincia, c1.Departamento, c2.Mail, 
-                        LOWER(SUBSTRING(c2.Mail FROM POSITION('@' IN c2.Mail) + 1)) AS Dominio
-                        FROM mails_con_depto AS c2
+                        SELECT c1.ID_DEPTO, c1.Provincia, c1.Departamento, c2.Mail, 
+                        LOWER(SUBSTRING(c2.Mail FROM POSITION('@' IN c2.Mail) + 1)) AS Dominio,
+                        FROM depto_provincia AS c1
                         
-                        JOIN depto_provincia AS c1
+                        LEFT OUTER JOIN mails_con_depto AS c2  
                         ON c1.ID_DEPTO = c2.ID_DEPTO
                         """).df()
                         
+AUX = dd.sql("""
+             SELECT DISTINCT Departamento
+             FROM provincia_depto_mail_dominio
+             """).df()
 
 cantidad_dominios_departamento = dd.sql("""
 SELECT Provincia, Departamento, dominio, COUNT(dominio) AS cantidad
 FROM provincia_depto_mail_dominio
-GROUP BY Provincia, Departamento, dominio
+GROUP BY ID_DEPTO, Provincia, Departamento, dominio
                    """).df()
                    
 ejercicio_iv = dd.sql("""
