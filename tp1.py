@@ -50,7 +50,6 @@ centros_culturales['Longitud'] = centros_culturales['Longitud'].astype(float)
 centros_culturales["Provincia"] = centros_culturales["Provincia"].str.upper()
 centros_culturales["Departamento"] = centros_culturales["Departamento"].str.upper()
 
-
 #%%
 
 """----------------------------------Métrica 2 - Establecimientos Educativos----------------------------------------"""
@@ -130,6 +129,10 @@ establecimientos_educativos = establecimientos_educativos[~(establecimientos_edu
 # Pasamos a mayuscula los nombres de provincia y departamento para estandarizar
 establecimientos_educativos["Jurisdicción"] = establecimientos_educativos["Jurisdicción"].str.upper()
 establecimientos_educativos["Departamento"] = establecimientos_educativos["Departamento"].str.upper()
+
+# Corregimos el 1§ DE MAYO
+establecimientos_educativos.loc[(establecimientos_educativos["Jurisdicción"] == "CHACO") & (establecimientos_educativos["Departamento"] == "1§ DE MAYO"), "Departamento"] = "1 DE MAYO"
+
 #%%
 
 """-------------------------------------Padrón Población------------------------------------------------------------"""
@@ -249,8 +252,8 @@ padron_poblacion = padron_poblacion.iloc[:, [0, 1, 4, 5]]
 
 # Pasamos a mayuscula los nombres de Areas para estandarizar
 padron_poblacion["Descripción"] = padron_poblacion["Descripción"].str.upper()
-"""-----------------------------------------------------------------------------------------------------------------"""
 #%%
+"""-----------------------------------------------------------------------------------------------------------------"""
 """ 
                                      ###########################
                                      #####  Normalización  ##### 
@@ -284,8 +287,6 @@ def extraer_id_provincia(Area):
     return Area[:2] if len(Area) == 5 else Area[:1]
 
 area_censal["ID_PROV"] = area_censal["Area"].apply(extraer_id_provincia).astype(int)
-
-
 #%%
 """----------------------------------Establecimientos Educativos----------------------------------------------------"""
 
@@ -382,7 +383,7 @@ consulta_ubicacion = dd.sql("""
                     """).df()
                     
 consulta_localidad = dd.sql("""
-                    SELECT ID_PROV, ID_DEPTO, Cod_Loc
+                    SELECT ID_PROV, ID_DEPTO, c.Cod_Loc, Capacidad
                     FROM consulta_ubicacion AS c
                     JOIN localidad_cc AS l
                     ON l.Cod_Loc = c.Cod_Loc             
