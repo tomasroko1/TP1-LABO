@@ -563,48 +563,47 @@ depto_provincia = dd.sql("""
                         """).df()
                         
 mails_con_depto = dd.sql("""
-                        SELECT l.ID_DEPTO, c.Latitud, c.Longitud, c.Nombre, m.Mail
-                        FROM centros_culturales AS c
-                        
-                        JOIN mails_cc AS m
-                        ON m.Longitud = c.Longitud
+                        SELECT l.ID_DEPTO, m.Latitud, m.Longitud, m.Nombre, m.Mail
+                        FROM mails_cc AS m
                         
                         JOIN localidad_cc AS l
-                        ON l.Longitud = c.Longitud
+                        ON l.Longitud = m.Longitud
                         
-                        WHERE l.Latitud = c.Latitud
-                    
+                        JOIN departamento AS d
+                        ON d.ID_DEPTO = l.ID_DEPTO
+                        
+                        WHERE l.Latitud = m.Latitud
                         """).df()
                         
-provincia_depto_mail_dominio  = dd.sql("""
+provincia_depto_mail_dominio = dd.sql("""
                         SELECT c1.ID_DEPTO, c1.Provincia, c1.Departamento, c2.Mail, 
-                        LOWER(SUBSTRING(c2.Mail FROM POSITION('@' IN c2.Mail) + 1)) AS Dominio,
+                        LOWER(
+                            LEFT(
+                                SUBSTRING(c2.Mail FROM POSITION('@' IN c2.Mail) + 1),
+                                CAST(POSITION('.' IN SUBSTRING(c2.Mail FROM POSITION('@' IN c2.Mail) + 1)) AS INTEGER) - 1
+                            )
+                        ) AS Dominio
                         FROM depto_provincia AS c1
                         
                         LEFT OUTER JOIN mails_con_depto AS c2  
-                        ON c1.ID_DEPTO = c2.ID_DEPTO
+                        ON c1.ID_DEPTO = c2.ID_DEPTO;
                         """).df()
-                        
-AUX = dd.sql("""
-             SELECT DISTINCT Departamento
-             FROM provincia_depto_mail_dominio
-             """).df()
+
+
 
 cantidad_dominios_departamento = dd.sql("""
-SELECT Provincia, Departamento, dominio, COUNT(dominio) AS cantidad
-FROM provincia_depto_mail_dominio
-GROUP BY ID_DEPTO, Provincia, Departamento, dominio
-                   """).df()
-                   
+                                        SELECT ID_DEPTO, Provincia, Departamento, dominio, COUNT(dominio) AS cantidad
+                                        FROM provincia_depto_mail_dominio
+                                        GROUP BY ID_DEPTO, Provincia, Departamento, dominio
+                                        """).df()
+                                          
+                    
 ejercicio_iv = dd.sql("""
-                      SELECT c.Provincia, c.Departamento, c.dominio
+                      SELECT ID_DEPTO, c.Provincia, c.Departamento, c.dominio
                       FROM cantidad_dominios_departamento c
                       WHERE c.cantidad = (
                           SELECT MAX(cantidad)
                           FROM cantidad_dominios_departamento
-                          WHERE cantidad_dominios_departamento.Departamento = c.Departamento)
+                          WHERE cantidad_dominios_departamento.ID_DEPTO = c.ID_DEPTO)
                       """).df()
-
-                   
-
                                       
