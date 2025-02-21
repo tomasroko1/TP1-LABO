@@ -50,6 +50,48 @@ centros_culturales['Longitud'] = centros_culturales['Longitud'].astype(float)
 centros_culturales["Provincia"] = centros_culturales["Provincia"].str.upper()
 centros_culturales["Departamento"] = centros_culturales["Departamento"].str.upper()
 
+cc_mails_simples =  dd.sql("""
+                    SELECT Latitud, Longitud, Nombre, Mail
+                    FROM centros_culturales
+                    WHERE Mail IS NOT NULL
+                    AND Mail NOT IN ('s/d', '', '-', '/', '//')
+                    AND Mail not like '%@%@%'
+                    """).df()
+
+subconsulta_mails_multiples = dd.sql("""
+                          SELECT Latitud, Longitud, Nombre, Mail
+                          FROM centros_culturales
+                          WHERE Mail IS NOT NULL
+                          AND Mail NOT IN ('s/d', '', '-', '/', '//')
+                          AND Mail like '%@%@%'
+                          """).df()
+                         
+mails_cc_multiples = dd.sql("""
+                            SELECT Latitud, Longitud, Nombre,
+                            REPLACE(Mail,' ', ',') AS Mail
+                            FROM subconsulta_mails_multiples
+                            """).df()
+                           
+mails_cc_multiples['Mail'] = mails_cc_multiples['Mail'].str.split(',')
+
+i=0
+for index, row in mails_cc_multiples.iterrows():
+    for x in row['Mail']:
+        cc_mails_simples.loc[737+i]=row['Latitud'], row['Longitud'], row['Nombre'], x
+        i+=1
+       
+mails_cc = dd.sql("""
+                    SELECT *
+                    FROM cc_mails_simples
+                    WHERE Mail NOT IN ( '', ' ');
+""").df()
+                 
+mails_cc = dd.sql("""
+                          SELECT Latitud, Longitud, Nombre, REPLACE(Mail,' ', '') AS Mail
+                          FROM mails_cc""").df()
+#No me estaría sacando el espacio que aparece adelnte de algunos mails
+
+
 #%%
 
 """----------------------------------Métrica 2 - Establecimientos Educativos----------------------------------------"""
