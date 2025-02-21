@@ -306,15 +306,56 @@ padron_poblacion["Descripción"] = padron_poblacion["Descripción"].str.upper()
 #%%
 """---------------------------------------Centros Culturales--------------------------------------------------------"""
 
-ubicacion_cc = centros_culturales.iloc[:, [7, 8, 0]].drop_duplicates()
-
 localidad_cc = centros_culturales.iloc[:, [0, 1, 2]].drop_duplicates()
 
-provincia_cc = centros_culturales.iloc[:, [1, 3]].drop_duplicates()
+provincia = centros_culturales.iloc[:, [1, 3]].drop_duplicates()
 
-departamento_cc = centros_culturales.iloc[:, [2, 1, 4]].drop_duplicates()
+# Función corregida para extraer el código de provincia
+def extraer_id_provincia(cod_loc):
+    cod_loc = str(cod_loc)  # Convertir a string para evitar errores
+    return cod_loc[:2] if len(cod_loc) == 8 else cod_loc[:1]
+
+localidad_cc["ID_PROV"] = localidad_cc["Cod_Loc"].apply(extraer_id_provincia).astype(int)
+
+def extraer_id_depto(cod_loc):
+    cod_loc = str(cod_loc)  # Convertir a string para evitar errores
+    return cod_loc[:5] if len(cod_loc) == 8 else cod_loc[:4]
+
+localidad_cc["ID_DEPTO"] = localidad_cc["Cod_Loc"].apply(extraer_id_depto).astype(int)
 
 centros_culturales = centros_culturales.iloc[:, [7, 8, 5, 6, 9]].drop_duplicates()
+
+#%%
+"""----------------------------------Establecimientos Educativos----------------------------------------------------"""
+localidad_ee = establecimientos_educativos.iloc[:, [1, 3, 4, 5]].drop_duplicates()
+
+establecimientos_educativos = establecimientos_educativos.iloc[:, [1, 2, 3, 5, 6, 7, 8, 9, 10]].drop_duplicates()
+
+# Función corregida para extraer el código de provincia
+def extraer_id_provincia(cod_loc):
+    cod_loc = str(cod_loc)  # Convertir a string para evitar errores
+    return cod_loc[:2] if len(cod_loc) == 8 else cod_loc[:1]
+
+localidad_ee["ID_PROV"] = localidad_ee["cod_loc"].apply(extraer_id_provincia).astype(int)
+
+def extraer_id_depto(cod_loc):
+    cod_loc = str(cod_loc)  # Convertir a string para evitar errores
+    return cod_loc[:5] if len(cod_loc) == 8 else cod_loc[:4]
+
+localidad_ee["ID_DEPTO"] = localidad_ee["cod_loc"].apply(extraer_id_depto).astype(int)
+localidad_ee.loc[localidad_ee["Departamento"].isin(["RIO GRANDE", "USHUAIA"]), "ID_DEPTO"] += 1
+
+localidad_ee = localidad_ee.iloc[:, [0, 4, 5, 2]].drop_duplicates()
+
+# Reemplazar "COMUNA X" por "CIUDAD DE BUENOS AIRES"
+localidad_ee.loc[localidad_ee['Departamento'].str.startswith('COMUNA'), 'Departamento'] = 'CIUDAD DE BUENOS AIRES'
+
+# Asignar ID_DEPTO = 2000 a todas las filas que eran "COMUNA X"
+localidad_ee.loc[localidad_ee['Departamento'].str.startswith('CIUDAD DE BUENOS AIRES'), 'ID_DEPTO'] = 2000
+
+departamento = localidad_ee.iloc[:, [1, 2, 3]].drop_duplicates()
+
+localidad_ee = localidad_ee.iloc[:, [0, 1, 2]].drop_duplicates()
 
 #%%
 """---------------------------------------Padrón Población----------------------------------------------------------"""
@@ -329,26 +370,34 @@ def extraer_id_provincia(Area):
     return Area[:2] if len(Area) == 5 else Area[:1]
 
 area_censal["ID_PROV"] = area_censal["Area"].apply(extraer_id_provincia).astype(int)
-#%%
-"""----------------------------------Establecimientos Educativos----------------------------------------------------"""
 
-localidad_escuelas = establecimientos_educativos.iloc[:, [3, 0, 4]].drop_duplicates()
+# Convertir todas las áreas "dosmil y algo" (2000 <= Area < 3000) en 2000
+padron_poblacion.loc[padron_poblacion['Area'].between(2000, 2999), 'Area'] = 2000
 
-establecimientos_educativos = establecimientos_educativos.iloc[:, [1, 2, 3, 5, 6, 7, 8, 9, 10]].drop_duplicates()
+# Agrupar por Edad y sumar los casos
+padron_poblacion = padron_poblacion.groupby(['Area', 'Edad'], as_index=False)['Casos'].sum()
 
-# Función corregida para extraer el código de provincia
-def extraer_id_provincia(cod_loc):
-    cod_loc = str(cod_loc)  # Convertir a string para evitar errores
-    return cod_loc[:2] if len(cod_loc) == 8 else cod_loc[:1]
+# Reemplazar "COMUNA X" por "CIUDAD DE BUENOS AIRES"
+area_censal.loc[area_censal['Descripción'].str.startswith('COMUNA'), 'Descripción'] = 'CIUDAD DE BUENOS AIRES'
 
-localidad_escuelas["ID_PROV"] = localidad_escuelas["cod_loc"].apply(extraer_id_provincia).astype(int)
+# Convertir todas las áreas 2000 y algo (2000 <= Area < 3000) en 2000
+area_censal.loc[area_censal['Area'].between(2000, 2999), 'Area'] = 2000
 
-def extraer_id_depto(cod_loc):
-    cod_loc = str(cod_loc)  # Convertir a string para evitar errores
-    return cod_loc[:5] if len(cod_loc) == 8 else cod_loc[:4]
+area_censal = area_censal.drop_duplicates()
 
-localidad_escuelas["ID_DEPTO"] = localidad_escuelas["cod_loc"].apply(extraer_id_depto).astype(int)
-localidad_escuelas.loc[localidad_escuelas["Departamento"].isin(["RIO GRANDE", "USHUAIA"]), "ID_DEPTO"] += 1
+# Ahora juntemos el area censal con 'departamento':
+area_censal = area_censal.rename(columns={'Area': 'ID_DEPTO', 'Descripción': 'Departamento'})
+
+# Unir ambos DataFrames sin repetir registros
+departamento = pd.concat([departamento, area_censal], ignore_index=True).drop_duplicates()
+
+# Borrar el DataFrame `area_censal` para liberar memoria
+del area_censal
+
+departamento = departamento.drop_duplicates(subset=['ID_PROV', 'ID_DEPTO'], keep='first')
+
+padron_poblacion = padron_poblacion.rename(columns={'Area': 'ID_DEPTO'})
+
 #%% 
 """ 
                                      ###########################
@@ -452,4 +501,6 @@ ejercicio_ii = dd.sql("""
                     GROUP BY Provincia, Departamento
                     ORDER BY Provincia ASC, Cantidad DESC
                     """).df()
+
+#%%
 
