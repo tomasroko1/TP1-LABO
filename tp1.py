@@ -306,7 +306,7 @@ padron_poblacion["Descripción"] = padron_poblacion["Descripción"].str.upper()
 #%%
 """---------------------------------------Centros Culturales--------------------------------------------------------"""
 
-localidad_cc = centros_culturales.iloc[:, [0, 1, 2]].drop_duplicates()
+localidad_cc = centros_culturales.iloc[:, [0, 7, 8, 1, 2]].drop_duplicates()
 
 provincia = centros_culturales.iloc[:, [1, 3]].drop_duplicates()
 
@@ -322,6 +322,8 @@ def extraer_id_depto(cod_loc):
     return cod_loc[:5] if len(cod_loc) == 8 else cod_loc[:4]
 
 localidad_cc["ID_DEPTO"] = localidad_cc["Cod_Loc"].apply(extraer_id_depto).astype(int)
+
+localidad_cc = localidad_cc.iloc[:, [1, 2, 3, 4]].drop_duplicates()
 
 centros_culturales = centros_culturales.iloc[:, [7, 8, 5, 6, 9]].drop_duplicates()
 
@@ -413,22 +415,29 @@ padron_poblacion = padron_poblacion.rename(columns={'Area': 'ID_DEPTO'})
 """------------------------------------------Ejercicio i)-----------------------------------------------------------"""
 cantidad_ee = dd.sql(
             """
-    SELECT ID_PROV, ID_DEPTO, Jurisdicción, Departamento,
+    SELECT p.ID_PROV, d.ID_DEPTO, p.Provincia, d.Departamento,
         SUM(CASE WHEN "Nivel inicial - Jardín maternal" = 1 OR "Nivel inicial - Jardín de infantes" = 1 THEN 1 ELSE 0 END) AS Jardines,
         SUM(CASE WHEN "Primario" = 1 THEN 1 ELSE 0 END) AS Primarios,
         SUM(CASE WHEN "Secundario" = 1 OR "Secundario - INET" = 1 THEN 1 ELSE 0 END) AS Secundarios
         
-    FROM establecimientos_educativos
-    JOIN localidad_escuelas 
-    ON establecimientos_educativos.cod_loc = localidad_escuelas.cod_loc
+    FROM establecimientos_educativos AS e
+    JOIN localidad_ee AS l
+    ON e.Cueanexo = l.Cueanexo
     
-    GROUP BY ID_PROV, ID_DEPTO, Jurisdicción, Departamento
+    JOIN provincia AS p
+    ON l.ID_PROV = p.ID_PROV
+    
+    JOIN departamento AS d
+    ON d.ID_DEPTO = l.ID_DEPTO    
+    
+    
+    GROUP BY p.ID_PROV, d.ID_DEPTO, p.Provincia, d.Departamento
             """).df()
             
 # Area y poblaciones estudiantiles de c/area
 cantidad_alumnos = dd.sql(
             """
-    SELECT p.Area, ID_PROV, Descripción,
+    SELECT p.ID_DEPTO, p.ID_PROV, d.Departamento,
         SUM(CASE WHEN Edad BETWEEN 0 AND 5 THEN Casos ELSE 0 END) AS 'poblacion_jardin',
         SUM(CASE WHEN Edad BETWEEN 6 AND 11 THEN Casos ELSE 0 END) AS 'poblacion_primaria',
         SUM(CASE WHEN Edad BETWEEN 12 AND 18 THEN Casos ELSE 0 END) AS 'poblacion_secundaria'
