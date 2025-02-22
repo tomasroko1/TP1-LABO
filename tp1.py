@@ -11,6 +11,7 @@ import pandas as pd
 import duckdb as dd
 import seaborn as sns
 import matplotlib.pyplot as plt
+import numpy as np
 
 #%%   Cargamos los archivos
 
@@ -143,10 +144,8 @@ metrica02 = dd.sql(
     """
     ).df()
 
-# Renombro la ultima columna  
-establecimientos_educativos.rename(columns={establecimientos_educativos.columns[-1]: "Servicios complementarios"}, inplace=True)
 
-# Agrego la columna Area a un nuevo dataframe "informacion_escuelas"
+# Renombro Código de localidad por comodidad, le cambiamos también el tipo
 establecimientos_educativos['Código de localidad'] = establecimientos_educativos['Código de localidad'].astype(int)
 establecimientos_educativos.rename(columns = {'Código de localidad':'cod_loc'}, inplace = True)
 
@@ -338,10 +337,13 @@ departamento["ID_PROV"] = departamento["cod_loc"].apply(extraer_id_provincia).as
 
 departamento["ID_DEPTO"] = departamento["cod_loc"].apply(extraer_id_depto).astype(int)
 
+# Antes de sacar las comunas, guardamos los datos de ellas para la visualización por departamento
+comunas_departamentos = departamento.copy()
 
-# Reemplazar "COMUNA X" por "CIUDAD DE BUENOS AIRES"
+# Ahora reemplazo "COMUNA X" por "CIUDAD DE BUENOS AIRES"
 departamento.loc[departamento['Departamento'].str.startswith('COMUNA'), 'Departamento'] = 'CIUDAD DE BUENOS AIRES'
 
+# Agregamos el id de departamento al dataframe cómo proponemos en nuestro DER
 establecimientos_educativos["ID_DEPTO"] = establecimientos_educativos["cod_loc"].apply(extraer_id_depto).astype(int)
 
 # Reemplazar los valores entre 2000 y 3000 por 2000 en la columna ID_DEPTO
@@ -352,7 +354,7 @@ establecimientos_educativos["ID_DEPTO"] = establecimientos_educativos["ID_DEPTO"
 departamento["ID_DEPTO"] = departamento["ID_DEPTO"].apply(lambda x: x + 1 if x in [94007, 94014] else x)
 establecimientos_educativos["ID_DEPTO"] = establecimientos_educativos["ID_DEPTO"].apply(lambda x: x + 1 if x in [94007, 94014] else x)
 
-# Organizo los datos
+# Organizo los datos :)
 departamento = departamento.iloc[:, [3,2,1]].drop_duplicates()
 establecimientos_educativos = establecimientos_educativos.iloc[:, [1, 11, 2, 6, 7, 8, 9, 10]].drop_duplicates()
 
@@ -360,6 +362,9 @@ establecimientos_educativos = establecimientos_educativos.iloc[:, [1, 11, 2, 6, 
 """---------------------------------------Padrón Población----------------------------------------------------------"""
 
 area_censal = padron_poblacion.iloc[:, [2, 3]].drop_duplicates()
+
+# Antes de reemplazar las comunas, guardamos los datos de ellas para la visualización por departamento
+padron_comunas = padron_poblacion.copy().rename(columns={'Area': 'ID_DEPTO'})
 
 padron_poblacion = padron_poblacion.iloc[:, [2, 0, 1]].drop_duplicates()
 
@@ -376,7 +381,7 @@ padron_poblacion.loc[padron_poblacion['Area'].between(2000, 2999), 'Area'] = 200
 # Agrupar por Edad y sumar los casos
 padron_poblacion = padron_poblacion.groupby(['Area', 'Edad'], as_index=False)['Casos'].sum()
 
-# Reemplazar "COMUNA X" por "CIUDAD DE BUENOS AIRES"
+# Reemplzaco "COMUNA X" por "CIUDAD DE BUENOS AIRES"
 area_censal.loc[area_censal['Descripción'].str.startswith('COMUNA'), 'Descripción'] = 'CIUDAD DE BUENOS AIRES'
 
 # Convertir todas las áreas 2000 y algo (2000 <= Area < 3000) en 2000
@@ -650,27 +655,81 @@ ax.set_yticks([])
 
 
 
-centros_educativos_por_poblacion = dd.sql("""
-                                          SELECT t.ID_DEPTO, t.Departamento,
-                                          SUM(c.Jardines + c.Primarios + c.Secundarios) AS Total_EE,
-                                          t.poblacion
-                                          FROM total_pob_por_depto_con_nombre AS t
-                                          JOIN cantidad_ee AS c
-                                          ON c.ID_DEPTO = t.ID_DEPTO
-                                          GROUP BY t.ID_DEPTO, t.Departamento, t.poblacion
-                                          """).df()
+# centros_educativos_por_poblacion = dd.sql("""
+#                                           SELECT t.ID_DEPTO, t.Departamento,
+#                                           SUM(c.Jardines + c.Primarios + c.Secundarios) AS Total_EE,
+#                                           t.poblacion
+#                                           FROM total_pob_por_depto_con_nombre AS t
+#                                           JOIN cantidad_ee AS c
+#                                           ON c.ID_DEPTO = t.ID_DEPTO
+#                                           GROUP BY t.ID_DEPTO, t.Departamento, t.poblacion
+#                                           """).df()
 
-fig, ax = plt.subplots() # Devuelve una tupla
+centros_educativos_por_departamento = dd.sql("""
+    SELECT 
+        d.ID_DEPTO, 
+        d.Departamento, 
+        COUNT(p.ID_DEPTO) AS total_ee,
+        SUM(p.Casos) AS total_poblacion,
+        SUM(CASE WHEN p.Edad BETWEEN 0 AND 5 THEN p.Casos ELSE 0 END) AS total_jardin,
+        SUM(CASE WHEN p.Edad BETWEEN 6 AND 11 THEN p.Casos ELSE 0 END) AS total_primario,
+        SUM(CASE WHEN p.Edad BETWEEN 12 AND 18 THEN p.Casos ELSE 0 END) AS total_secundario
+    FROM padron_comunas AS p
+    JOIN comunas_departamentos AS d
+    ON p.ID_DEPTO = d.ID_DEPTO
+    WHERE d.ID_DEPTO > 3000
+    GROUP BY d.ID_DEPTO, d.Departamento
+
+    UNION
+
+    SELECT 
+        d.ID_DEPTO, 
+        d.Departamento, 
+        COUNT(p.ID_DEPTO) AS total_ee,
+        SUM(p.Casos) AS total_poblacion,
+        SUM(CASE WHEN p.Edad BETWEEN 0 AND 5 THEN p.Casos ELSE 0 END) AS total_jardin,
+        SUM(CASE WHEN p.Edad BETWEEN 6 AND 11 THEN p.Casos ELSE 0 END) AS total_primario,
+        SUM(CASE WHEN p.Edad BETWEEN 12 AND 18 THEN p.Casos ELSE 0 END) AS total_secundario
+    FROM padron_comunas AS p
+    JOIN comunas_departamentos AS d
+    ON p.Descripción = d.Departamento
+    WHERE d.ID_DEPTO < 3000
+    GROUP BY d.ID_DEPTO, d.Departamento
+""").df()
+
+
+
+
+fig, ax = plt.subplots()  # Crear la figura
 
 plt.rcParams['font.family'] = 'sans-serif'
-ax.scatter(centros_educativos_por_poblacion['poblacion'],
-           centros_educativos_por_poblacion['Total_EE'],
-           s=8, color='magenta')
 
+# Graficar cada nivel educativo con colores distintos
+ax.scatter(
+    centros_educativos_por_departamento['total_jardin'],
+    centros_educativos_por_departamento['total_ee'],
+    s=8, color="blue", label="Jardín"
+)
 
-ax.set_title('Establecimientos Educativos vs Población')                     # Titulo
-ax.set_xlabel('Población', fontsize='medium')                       # Nombre eje x
-ax.set_ylabel('Cantidad de Escuelas', fontsize = 'medium') # Nombre eje y
+ax.scatter(
+    centros_educativos_por_departamento['total_primario'],
+    centros_educativos_por_departamento['total_ee'],
+    s=8, color="green", label="Primario"
+)
+
+ax.scatter(
+    centros_educativos_por_departamento['total_secundario'],
+    centros_educativos_por_departamento['total_ee'],
+    s=8, color="red", label="Secundario"
+)
+
+# Configurar título y etiquetas
+ax.set_title('Establecimientos Educativos vs Cantidad de Habitantes')  
+ax.set_xlabel('Cantidad de habitantes', fontsize='medium')  
+ax.set_ylabel('Cantidad de Escuelas', fontsize='medium')  
+
+# Configurar los cortes del eje X cada 5,000,000 habitantes
+#ax.set_xticks(np.arange(0, centros_educativos_por_departamento['total_poblacion'].max() + 2000000, 5000000))
 
 #%%
 
