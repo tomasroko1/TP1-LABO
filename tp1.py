@@ -410,6 +410,7 @@ padron_poblacion = padron_poblacion.rename(columns={'Area': 'ID_DEPTO'})
 
 # LA QUE VA ES RELACIONAR EL CODIGO DE LOCALIDAD CON EL AREA
 """------------------------------------------Ejercicio i)-----------------------------------------------------------"""
+
 cantidad_ee = dd.sql(
             """
     SELECT p.ID_PROV, d.ID_DEPTO, p.Provincia, d.Departamento,
@@ -512,8 +513,8 @@ cantidad_cc_por_deptos = dd.sql("""
                   """).df()
                  
 cantidad_ee_por_deptos = dd.sql("""
-                  SELECT ID_DEPTO, count(*) as ee_por_depto
-                  FROM establecimientos_eductivos
+                  SELECT ID_DEPTO, count(*) AS ee_por_depto
+                  FROM establecimientos_educativos
                   GROUP BY ID_DEPTO
                   """).df()
                    
@@ -645,6 +646,10 @@ ax.set_yticks([])
 #%%
 """------------------------------------------Ejercicio ii)----------------------------------------------------------"""
                   
+# Tengo que agregar el análisis por COMUNA
+
+
+
 centros_educativos_por_poblacion = dd.sql("""
                                           SELECT t.ID_DEPTO, t.Departamento,
                                           SUM(c.Jardines + c.Primarios + c.Secundarios) AS Total_EE,
@@ -669,3 +674,25 @@ ax.set_ylabel('Cantidad de Escuelas', fontsize = 'medium') # Nombre eje y
 
 #%%
 
+cantidad_ee_por_provincia = dd.sql(
+            """
+    SELECT d.ID_PROV, COUNT(*)
+    FROM establecimientos_educativos AS e
+    
+    JOIN departamento AS d
+    ON d.ID_DEPTO = e.ID_DEPTO
+    
+    GROUP BY d.ID_PROV
+            """).df()
+            
+poblacion_por_provincia = dd.sql(
+            """
+    SELECT d.ID_PROV, SUM(Casos)
+    FROM padron_poblacion AS p
+    
+    JOIN departamento AS d
+    ON d.ID_DEPTO = p.ID_DEPTO
+    
+    GROUP BY d.ID_PROV
+            """).df()
+            
