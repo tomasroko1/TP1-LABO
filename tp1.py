@@ -9,6 +9,8 @@ Created on Tue Feb 11 21:52:13 2025
 
 import pandas as pd
 import duckdb as dd
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 #%%   Cargamos los archivos
 
@@ -313,54 +315,46 @@ localidad_cc = centros_culturales.iloc[:, [0, 7, 8, 1, 2]].drop_duplicates()
 
 provincia = centros_culturales.iloc[:, [1, 3]].drop_duplicates()
 
-# Función corregida para extraer el código de provincia
-def extraer_id_provincia(cod_loc):
-    cod_loc = str(cod_loc)  # Convertir a string para evitar errores
-    return cod_loc[:2] if len(cod_loc) == 8 else cod_loc[:1]
-
-localidad_cc["ID_PROV"] = localidad_cc["Cod_Loc"].apply(extraer_id_provincia).astype(int)
-
 def extraer_id_depto(cod_loc):
     cod_loc = str(cod_loc)  # Convertir a string para evitar errores
     return cod_loc[:5] if len(cod_loc) == 8 else cod_loc[:4]
 
 localidad_cc["ID_DEPTO"] = localidad_cc["Cod_Loc"].apply(extraer_id_depto).astype(int)
 
-localidad_cc = localidad_cc.iloc[:, [1, 2, 3, 4]].drop_duplicates()
+localidad_cc = localidad_cc.iloc[:, [1, 2, 4]].drop_duplicates()
 
 centros_culturales = centros_culturales.iloc[:, [7, 8, 5, 9]].drop_duplicates()
 
 #%%
 """----------------------------------Establecimientos Educativos----------------------------------------------------"""
-localidad_ee = establecimientos_educativos.iloc[:, [1, 3, 4, 5]].drop_duplicates()
-
-establecimientos_educativos = establecimientos_educativos.iloc[:, [1, 2, 6, 7, 8, 9, 10]].drop_duplicates()
-
 # Función corregida para extraer el código de provincia
 def extraer_id_provincia(cod_loc):
     cod_loc = str(cod_loc)  # Convertir a string para evitar errores
     return cod_loc[:2] if len(cod_loc) == 8 else cod_loc[:1]
 
-localidad_ee["ID_PROV"] = localidad_ee["cod_loc"].apply(extraer_id_provincia).astype(int)
+departamento = establecimientos_educativos.iloc[:, [3, 4]].drop_duplicates()
 
-def extraer_id_depto(cod_loc):
-    cod_loc = str(cod_loc)  # Convertir a string para evitar errores
-    return cod_loc[:5] if len(cod_loc) == 8 else cod_loc[:4]
+departamento["ID_PROV"] = departamento["cod_loc"].apply(extraer_id_provincia).astype(int)
 
-localidad_ee["ID_DEPTO"] = localidad_ee["cod_loc"].apply(extraer_id_depto).astype(int)
-localidad_ee.loc[localidad_ee["Departamento"].isin(["RIO GRANDE", "USHUAIA"]), "ID_DEPTO"] += 1
+departamento["ID_DEPTO"] = departamento["cod_loc"].apply(extraer_id_depto).astype(int)
 
-localidad_ee = localidad_ee.iloc[:, [0, 4, 5, 2]].drop_duplicates()
 
 # Reemplazar "COMUNA X" por "CIUDAD DE BUENOS AIRES"
-localidad_ee.loc[localidad_ee['Departamento'].str.startswith('COMUNA'), 'Departamento'] = 'CIUDAD DE BUENOS AIRES'
+departamento.loc[departamento['Departamento'].str.startswith('COMUNA'), 'Departamento'] = 'CIUDAD DE BUENOS AIRES'
 
-# Asignar ID_DEPTO = 2000 a todas las filas que eran "COMUNA X"
-localidad_ee.loc[localidad_ee['Departamento'].str.startswith('CIUDAD DE BUENOS AIRES'), 'ID_DEPTO'] = 2000
+establecimientos_educativos["ID_DEPTO"] = establecimientos_educativos["cod_loc"].apply(extraer_id_depto).astype(int)
 
-departamento = localidad_ee.iloc[:, [1, 2, 3]].drop_duplicates()
+# Reemplazar los valores entre 2000 y 3000 por 2000 en la columna ID_DEPTO
+departamento["ID_DEPTO"] = departamento["ID_DEPTO"].apply(lambda x: 2000 if 2000 <= x <= 3000 else x)
+establecimientos_educativos["ID_DEPTO"] = establecimientos_educativos["ID_DEPTO"].apply(lambda x: 2000 if 2000 <= x <= 3000 else x)
 
-localidad_ee = localidad_ee.iloc[:, [0, 1, 2]].drop_duplicates()
+# Corregimos los depto con diferencias de ID con la tabla Padrón
+departamento["ID_DEPTO"] = departamento["ID_DEPTO"].apply(lambda x: x + 1 if x in [94007, 94014] else x)
+establecimientos_educativos["ID_DEPTO"] = establecimientos_educativos["ID_DEPTO"].apply(lambda x: x + 1 if x in [94007, 94014] else x)
+
+# Organizo los datos
+departamento = departamento.iloc[:, [3,2,1]].drop_duplicates()
+establecimientos_educativos = establecimientos_educativos.iloc[:, [1, 11, 2, 6, 7, 8, 9, 10]].drop_duplicates()
 
 #%%
 """---------------------------------------Padrón Población----------------------------------------------------------"""
@@ -400,7 +394,6 @@ departamento = pd.concat([departamento, area_censal], ignore_index=True).drop_du
 del area_censal
 
 departamento = departamento.drop_duplicates(subset=['ID_PROV', 'ID_DEPTO'], keep='first')
-
 
 padron_poblacion = padron_poblacion.rename(columns={'Area': 'ID_DEPTO'})
 
@@ -525,7 +518,7 @@ total_pob_por_depto = dd.sql("""
                          	""").df()    
                         	 
 total_pob_por_depto_con_nombre = dd.sql("""
-                                  	SELECT Provincia, Departamento, Poblacion, d.ID_DEPTO
+                                  	SELECT Provincia, Departamento, poblacion, d.ID_DEPTO
                                   	FROM departamento AS d                             	 
                                   	LEFT OUTER JOIN total_pob_por_depto AS t
                                   	ON d.ID_DEPTO = t.ID_DEPTO
@@ -606,4 +599,67 @@ ejercicio_iv = dd.sql("""
                           FROM cantidad_dominios_departamento
                           WHERE cantidad_dominios_departamento.ID_DEPTO = c.ID_DEPTO)
                       """).df()
-                                      
+#%% 
+""" 
+                                     ###########################
+                                     #####  Visualización  ##### 
+                                     ###########################
+"""
+#%%
+"""------------------------------------------Ejercicio i)-----------------------------------------------------------"""
+
+cantidad_de_cc_por_provincia = dd.sql("""
+                                 	SELECT ID_PROV, sum(cc_por_depto) as cant_de_cc_por_prov
+                                 	FROM cantidad_cc_por_deptos
+                                 	GROUP BY ID_PROV
+""").df()
+
+cantidad_de_cc_por_provincia_con_nombre = dd.sql("""
+                                             	SELECT c.cant_de_cc_por_prov, REPLACE(REPLACE(Provincia, 'TIERRA DEL FUEGO, ANTÁRTIDA E ISLAS DEL ATLÁNTICO SUR', 'TIERRA DEL FUEGO...'), 'CIUDAD AUTÓNOMA DE BUENOS AIRES', 'CABA') AS Provincia
+                                             	FROM provincia as p
+                                             	JOIN cantidad_de_cc_por_provincia AS c
+                                             	ON p.ID_PROV = c.ID_PROV
+                                             	ORDER BY cant_de_cc_por_prov DESC
+                                             	""").df()
+
+
+fig, ax = plt.subplots()
+
+plt.rcParams['font.family'] = 'sans-serif'
+
+ax.bar(data = cantidad_de_cc_por_provincia_con_nombre, x='Provincia', height='cant_de_cc_por_prov')
+
+ax.set_title('Cantidad de centros culturales por provincias')
+ax.set_ylabel('Cantidad de centros culturales', fontsize='medium')
+plt.tight_layout()
+plt.xticks(rotation=-60, fontsize=5, ha = 'left')
+ax.bar_label(ax.containers[0], fontsize=6)
+ax.set_yticks([])
+
+#%%
+"""------------------------------------------Ejercicio ii)----------------------------------------------------------"""
+                  
+centros_educativos_por_poblacion = dd.sql("""
+                                          SELECT t.ID_DEPTO, t.Departamento,
+                                          SUM(c.Jardines + c.Primarios + c.Secundarios) AS Total_EE,
+                                          t.poblacion
+                                          FROM total_pob_por_depto_con_nombre AS t
+                                          JOIN cantidad_ee AS c
+                                          ON c.ID_DEPTO = t.ID_DEPTO
+                                          GROUP BY t.ID_DEPTO, t.Departamento, t.poblacion
+                                          """).df()
+
+fig, ax = plt.subplots() # Devuelve una tupla
+
+plt.rcParams['font.family'] = 'sans-serif'
+ax.scatter(centros_educativos_por_poblacion['poblacion'],
+           centros_educativos_por_poblacion['Total_EE'],
+           s=8, color='magenta')
+
+
+ax.set_title('Establecimientos Educativos vs Población')                     # Titulo
+ax.set_xlabel('Población', fontsize='medium')                       # Nombre eje x
+ax.set_ylabel('Cantidad de Escuelas', fontsize = 'medium') # Nombre eje y
+
+#%%
+
