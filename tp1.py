@@ -419,14 +419,11 @@ cantidad_ee = dd.sql(
         
     FROM establecimientos_educativos AS e
     
-    JOIN localidad_ee AS l
-    ON e.Cueanexo = l.Cueanexo
+    JOIN departamento AS d
+    ON d.ID_DEPTO = e.ID_DEPTO
     
     JOIN provincia AS p
-    ON l.ID_PROV = p.ID_PROV
-    
-    JOIN departamento AS d
-    ON d.ID_DEPTO = l.ID_DEPTO    
+    ON d.ID_PROV = p.ID_PROV 
     
     GROUP BY p.ID_PROV, d.ID_DEPTO, p.Provincia, d.Departamento
             """).df()
@@ -477,10 +474,14 @@ consulta_ids = dd.sql("""
                	 
 #UNIR CC, LOCALIDAD_CC, CON ID_PROV, ID_DEPTO               	 
 consulta_provincia_cc = dd.sql("""
-                	SELECT Latitud, Longitud, Nombre, provincia, ID_DEPTO
+                	SELECT c.Latitud, c.Longitud, c.Nombre, p.provincia, c.ID_DEPTO
                 	FROM consulta_ids AS c
+                    
+                    JOIN departamento AS d
+                    ON d.ID_DEPTO = c.ID_DEPTO
+                    
                 	JOIN provincia AS p
-                	ON p.ID_PROV = c.ID_PROV
+                	ON p.ID_PROV = d.ID_PROV
                 	""").df()               	 
                                	 
 ejercicio_ii = dd.sql("""
@@ -495,53 +496,58 @@ ejercicio_ii = dd.sql("""
 #%%
 """------------------------------------------Ejercicio iii)---------------------------------------------------------"""
 
-
 cantidad_cc_por_deptos = dd.sql("""
-                	SELECT ID_PROV, ID_DEPTO, count(*) as cc_por_depto
-                	FROM centros_culturales AS c
-                	JOIN localidad_cc AS loc
-                	ON loc.Latitud = c.Latitud
-                	WHERE loc.Longitud = c.Longitud
-                	GROUP BY ID_DEPTO, ID_PROV
-                	""").df()
-               	 
+                  SELECT d.ID_PROV, d.ID_DEPTO, count(*) as cc_por_depto
+                  FROM centros_culturales AS c
+                  
+                  JOIN localidad_cc AS loc
+                  ON loc.Latitud = c.Latitud
+                  
+                  JOIN departamento AS d
+                  ON d.ID_DEPTO = loc.ID_DEPTO                  
+                  
+                  WHERE loc.Longitud = c.Longitud
+                  
+                  GROUP BY d.ID_DEPTO, d.ID_PROV
+                  """).df()
+                 
 cantidad_ee_por_deptos = dd.sql("""
-                 	SELECT ID_DEPTO, ID_PROV, count(*) as ee_por_depto
-                 	FROM localidad_ee
-                 	GROUP BY ID_DEPTO, ID_PROV
-                 	""").df()
-                	 
+                  SELECT ID_DEPTO, count(*) as ee_por_depto
+                  FROM establecimientos_eductivos
+                  GROUP BY ID_DEPTO
+                  """).df()
+                   
 total_pob_por_depto = dd.sql("""
-                         	SELECT ID_DEPTO, SUM(Casos) as poblacion
-                         	FROM padron_poblacion
-                         	GROUP BY ID_DEPTO
-                         	""").df()    
-                        	 
+                          SELECT ID_DEPTO, SUM(Casos) as poblacion
+                          FROM padron_poblacion
+                          GROUP BY ID_DEPTO
+                          """).df()    
+                           
 total_pob_por_depto_con_nombre = dd.sql("""
-                                  	SELECT Provincia, Departamento, poblacion, d.ID_DEPTO
-                                  	FROM departamento AS d                             	 
-                                  	LEFT OUTER JOIN total_pob_por_depto AS t
-                                  	ON d.ID_DEPTO = t.ID_DEPTO
-                                 	 
-                                  	LEFT OUTER JOIN provincia AS p
-                                  	ON d.ID_PROV = p.ID_PROV                                 	 
-                                  	""").df()
-               	 
+                                    SELECT Provincia, Departamento, poblacion, d.ID_DEPTO
+                                    FROM departamento AS d                              
+                                    LEFT OUTER JOIN total_pob_por_depto AS t
+                                    ON d.ID_DEPTO = t.ID_DEPTO
+                                   
+                                    LEFT OUTER JOIN provincia AS p
+                                    ON d.ID_PROV = p.ID_PROV                                  
+                                    """).df()
+                 
 ejercicio_iii = dd.sql("""
-                               	SELECT t.Provincia, t.Departamento, ee_por_depto,
-                               	CASE WHEN cc_por_depto IS NULL
-                                          	THEN 0
-                                          	ELSE cc_por_depto
-                                      	END AS cc_por_depto, t.poblacion,
-                              	 
-                               	FROM total_pob_por_depto_con_nombre AS t
-                               	LEFT OUTER JOIN cantidad_ee_por_deptos as e
-                               	ON t.ID_DEPTO = e.ID_DEPTO
-                              	 
-                               	LEFT OUTER JOIN cantidad_cc_por_deptos as c
-                               	ON t.ID_DEPTO = c.ID_DEPTO
-                               	ORDER BY ee_por_depto DESC, cc_por_depto DESC, t.Provincia ASC, t.Departamento ASC
-                               	""").df()
+                                SELECT t.Provincia, t.Departamento, ee_por_depto,
+                                CASE WHEN cc_por_depto IS NULL
+                                            THEN 0
+                                            ELSE cc_por_depto
+                                        END AS cc_por_depto, t.poblacion,
+                                 
+                                FROM total_pob_por_depto_con_nombre AS t
+                                LEFT OUTER JOIN cantidad_ee_por_deptos as e
+                                ON t.ID_DEPTO = e.ID_DEPTO
+                                 
+                                LEFT OUTER JOIN cantidad_cc_por_deptos as c
+                                ON t.ID_DEPTO = c.ID_DEPTO
+                                ORDER BY ee_por_depto DESC, cc_por_depto DESC, t.Provincia ASC, t.Departamento ASC
+                                """).df()
 
 #%%
 """------------------------------------------Ejercicio iv)----------------------------------------------------------"""
