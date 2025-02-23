@@ -708,24 +708,23 @@ plt.rcParams['font.family'] = 'sans-serif'
 ax.scatter(
     centros_educativos_por_departamento['total_jardin'],
     centros_educativos_por_departamento['total_ee'],
-    s=8, color="blue", label="Jardín"
+    s=1, color="blue", label="Jardín"
 )
 
 ax.scatter(
     centros_educativos_por_departamento['total_primario'],
     centros_educativos_por_departamento['total_ee'],
-    s=8, color="green", label="Primario"
+    s=1, color="green", label="Primario"
 )
 
 ax.scatter(
     centros_educativos_por_departamento['total_secundario'],
     centros_educativos_por_departamento['total_ee'],
-    s=8, color="red", label="Secundario"
+    s=1, color="red", label="Secundario"
 )
 
-# Configurar título y etiquetas
-ax.set_title('Establecimientos Educativos vs Cantidad de Habitantes')  
-ax.set_xlabel('Cantidad de habitantes', fontsize='medium')  
+# Configurar título y etiquetas 
+ax.set_xlabel('Cantidad de habitantes (Millones)', fontsize='medium')  
 ax.set_ylabel('Cantidad de Escuelas', fontsize='medium')  
 
 # Configurar los cortes del eje X cada 5,000,000 habitantes
@@ -754,4 +753,222 @@ poblacion_por_provincia = dd.sql(
     
     GROUP BY d.ID_PROV
             """).df()
+
+#%%
+cantidad_ee_por_provincia = dd.sql(
+            """
+    SELECT d.ID_PROV, COUNT(*)
+    FROM establecimientos_educativos AS e
+   
+    JOIN departamento AS d
+    ON d.ID_DEPTO = e.ID_DEPTO
+   
+    GROUP BY d.ID_PROV
+            """).df()
+           
+poblacion_por_provincia = dd.sql(
+            """
+    SELECT d.ID_PROV, SUM(Casos)
+    FROM padron_poblacion AS p
+   
+    JOIN departamento AS d
+    ON d.ID_DEPTO = p.ID_DEPTO
+   
+    GROUP BY d.ID_PROV
+            """).df()
             
+#%%
+"""------------------------------------------Visualiación iii)----------------------------------------------------------"""
+                 
+#Realizar un boxplot por cada provincia, de la cantidad de EE por cada
+#departamento de la provincia. Mostrar todos los boxplots en una misma
+#figura, ordenados por la mediana de cada provincia
+ee_por_depto_prov = dd.sql("""
+SELECT depto_provincia.ID_DEPTO, REPLACE(REPLACE(Provincia, 'TIERRA DEL FUEGO, ANTÁRTIDA E ISLAS DEL ATLÁNTICO SUR', 'TIERRA DEL FUEGO...'), 'CIUDAD AUTÓNOMA DE BUENOS AIRES', 'CABA') AS Provincia, ee_por_depto
+FROM depto_provincia
+LEFT OUTER JOIN cantidad_ee_por_deptos
+ON depto_provincia.ID_DEPTO = cantidad_ee_por_deptos.ID_DEPTO
+""").df()
+
+
+
+
+
+
+fig, ax = plt.subplots(figsize=(10, 6))
+ee_por_depto_prov.boxplot(by = ['Provincia'], column = ['ee_por_depto'], ax = ax, grid = False, showmeans = True)
+ax.set_xticklabels(ax.get_xticklabels(), rotation=-60, fontsize=5, ha='left')
+#plt.xticks(rotation=-60, fontsize=5, ha = 'left')
+ax.set_title('Cantidad de establecimientos Educativos por departamento por cada cada provincia')
+ax.set_ylabel('Cantidad de establecimientos Educativos por departamento')
+plt.suptitle('')  # Esto elimina el título de "Provincia"
+
+
+plt.tight_layout()
+
+
+# Añadimos un título y etiquetas a los ejes
+#ax.set_title('Cantidad de Establecimientos Educativos por Departamento y Provincia', fontsize=12)
+#ax.set_ylabel('Cantidad de Establecimientos Educativos por Departamento', fontsize=10)
+ax = sns.boxplot(x = 'Provincia',
+                 y = 'ee_por_depto',
+                 data = ee_por_depto_prov,
+                 ax = ax,
+                 showmeans = True,
+                 )
+ax.set_xticklabels(ax.get_xticklabels(), rotation=-60, fontsize=5, ha='left')
+#plt.xticks(rotation=-60, fontsize=5, ha = 'left')
+ax.set_title('Cantidad de establecimientos Educativos por departamento por cada cada provincia')
+ax.set_ylabel('Cantidad de establecimientos Educativos por departamento')
+plt.suptitle('')  # Esto elimina el título de "Provincia"
+
+
+
+
+plt.tight_layout()
+
+
+import seaborn as sns
+
+
+# Crear una figura y un eje para el gráfico
+fig, ax = plt.subplots(figsize=(10, 6))
+
+
+# Crear el gráfico de cajas con Seaborn
+sns.boxplot(x='Provincia',
+            y='ee_por_depto',
+            data=ee_por_depto_prov,
+            ax=ax,
+            showmeans=True)
+
+
+# Ajustar las etiquetas del eje X para mejor visualización
+ax.set_xticklabels(ax.get_xticklabels(), rotation=-60, fontsize=8, ha='left')
+
+
+# Añadir título y etiquetas a los ejes
+ax.set_title('Cantidad de Establecimientos Educativos por Departamento y Provincia', fontsize=12)
+ax.set_ylabel('Cantidad de Establecimientos Educativos por Departamento', fontsize=10)
+
+
+# Eliminar el título generado por el parámetro 'by' de pandas (si lo hay)
+plt.suptitle('')  # Esto elimina el título de "Provincia"
+
+
+# Ajustar el layout para evitar solapamientos
+plt.tight_layout()
+
+
+# Si aún hay solapamiento, ajustamos manualmente el espacio entre el gráfico y los títulos
+plt.subplots_adjust(top=0.9)  # Este valor puede ajustarse según sea necesario
+
+
+# Mostrar el gráfico
+plt.show()
+
+#%%            
+"""------------------------------------------Ejercicio iv)----------------------------------------------------------"""           
+
+ejercicio_iii['proporcion_ee_1000_hab'] = (ejercicio_iii['ee_por_depto'] / ejercicio_iii['poblacion']) * 1000
+
+
+ejercicio_iii['proporcion_cc_1000_hab'] = (ejercicio_iii['cc_por_depto'] / ejercicio_iii['poblacion']) * 1000
+
+
+ejercicio_iii_para_grafico = dd.sql("""
+                                    SELECT *
+                                    FROM ejercicio_iii
+                                    WHERE cc_por_depto != 0
+                                    """).df()
+
+
+fig, ax = plt.subplots()
+ax.scatter(data = ejercicio_iii_para_grafico, x = 'proporcion_ee_1000_hab', y = 'proporcion_cc_1000_hab', s = 1)
+ax.set_title('Proporción EE vs CC por 1000 habitantes por departamentos')
+ax.set_xlabel('Proporción EE por 1000 hab')
+ax.set_ylabel('Proporción CC por 1000 hab')
+
+
+ejercicio_iii_por_prov = dd.sql("""
+                                    SELECT Provincia, sum(ee_por_depto) as ee_por_prov, sum(cc_por_depto) as cc_por_prov, sum(poblacion) as poblacion
+                                    FROM ejercicio_iii
+                                    GROUP BY Provincia
+""").df()
+
+
+ejercicio_iii_por_prov['proporcion_ee_1000_hab'] = (ejercicio_iii_por_prov['ee_por_prov'] / ejercicio_iii_por_prov['poblacion']) * 1000
+
+
+ejercicio_iii_por_prov['proporcion_cc_1000_hab'] = (ejercicio_iii_por_prov['cc_por_prov'] / ejercicio_iii_por_prov['poblacion']) * 1000
+
+
+fig, ax = plt.subplots()
+ax.scatter(data = ejercicio_iii_por_prov, x = 'proporcion_ee_1000_hab', y = 'proporcion_cc_1000_hab')
+ax.set_title('Proporción EE vs CC por 1000 habitantes por provincias')
+ax.set_xlabel('Proporción EE por 1000 hab')
+ax.set_ylabel('Proporción CC por 1000 hab')
+
+
+
+
+ejercicio_iii_por_prov = dd.sql("""
+SELECT *
+FROM ejercicio_iii_por_prov
+ORDER BY poblacion""").df()
+
+
+fig, ax = plt.subplots()
+ax.plot('poblacion', 'proporcion_ee_1000_hab', data = ejercicio_iii_por_prov, marker = '.')
+ax.plot('poblacion', 'proporcion_cc_1000_hab', data = ejercicio_iii_por_prov, marker = '.')
+ax.set_title('Proporción EE y proporcion cc vs poblacion por provincias')
+ax.set_xlabel('Población')
+ax.set_ylabel('Proporción por 1000 hab')
+ax.legend()
+plt.show()
+
+
+ejercicio_iii = ejercicio_iii.sort_values('poblacion')
+
+
+fig, ax = plt.subplots()
+ax.plot('poblacion', 'proporcion_ee_1000_hab', data = ejercicio_iii, marker = '.')
+ax.plot('poblacion', 'proporcion_cc_1000_hab', data = ejercicio_iii, marker = '.')
+ax.set_title('Proporción EE y proporcion cc vs poblacion por deptos')
+ax.set_xlabel('Población')
+ax.set_ylabel('Proporción por 1000 hab')
+ax.legend()
+plt.show()
+
+
+ejercicio_iii_por_prov['proporcion_entre_cc_y_ee_1000_hab'] = ejercicio_iii_por_prov['proporcion_cc_1000_hab'] / ejercicio_iii_por_prov['proporcion_ee_1000_hab']
+ejercicio_iii_por_prov['proporcion_entre_ee_y_cc_1000_hab'] = ejercicio_iii_por_prov['proporcion_ee_1000_hab'] / ejercicio_iii_por_prov['proporcion_cc_1000_hab']
+
+
+
+
+ejercicio_iii_por_prov = dd.sql("""
+SELECT *
+FROM ejercicio_iii_por_prov
+ORDER BY PoblaciOn DESC""").df()
+
+
+
+
+ejercicio_iii_por_prov = ejercicio_iii_por_prov.sort_values('poblacion')
+
+
+fig, ax = plt.subplots()
+ax.scatter(data = ejercicio_iii_por_prov, x = 'poblacion', y = 'proporcion_entre_cc_y_ee_1000_hab')
+ax.set_title('Proporción CC divido proporcion EE por 1000 habitantes por provincias vs pobalcion')
+ax.set_xlabel('Población')
+ax.set_ylabel('Proporción CC por 1000 hab/ proporción EE por 1000 hab')
+fig.subplots_adjust(top=1)  # Ajusta el espacio superior (aumentar el valor si es necesario)
+
+
+fig, ax = plt.subplots()
+ax.scatter(data = ejercicio_iii_por_prov, x = 'poblacion', y = 'proporcion_entre_ee_y_cc_1000_hab')
+ax.set_title('Proporción EE divido proporcion CC por 1000 habitantes por provincias vs pobalcion')
+ax.set_xlabel('Población')
+ax.set_ylabel('Proporción EE por 1000 hab/ proporción CC por 1000 hab')
+fig.subplots_adjust(top=1)  # Ajusta el espacio superior (aumentar el valor si es necesario)
