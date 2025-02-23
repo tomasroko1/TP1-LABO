@@ -11,7 +11,6 @@ import pandas as pd
 import duckdb as dd
 import seaborn as sns
 import matplotlib.pyplot as plt
-import numpy as np
 
 #%%   Cargamos los archivos
 
@@ -346,6 +345,9 @@ departamento.loc[departamento['Departamento'].str.startswith('COMUNA'), 'Departa
 # Agregamos el id de departamento al dataframe cómo proponemos en nuestro DER
 establecimientos_educativos["ID_DEPTO"] = establecimientos_educativos["cod_loc"].apply(extraer_id_depto).astype(int)
 
+# Antes de sacar las comunas, guardamos los datos de ellas para la visualización por establecimientos educativos
+comunas_ee = establecimientos_educativos.copy()
+
 # Reemplazar los valores entre 2000 y 3000 por 2000 en la columna ID_DEPTO
 departamento["ID_DEPTO"] = departamento["ID_DEPTO"].apply(lambda x: 2000 if 2000 <= x <= 3000 else x)
 establecimientos_educativos["ID_DEPTO"] = establecimientos_educativos["ID_DEPTO"].apply(lambda x: 2000 if 2000 <= x <= 3000 else x)
@@ -353,18 +355,20 @@ establecimientos_educativos["ID_DEPTO"] = establecimientos_educativos["ID_DEPTO"
 # Corregimos los depto con diferencias de ID con la tabla Padrón
 departamento["ID_DEPTO"] = departamento["ID_DEPTO"].apply(lambda x: x + 1 if x in [94007, 94014] else x)
 establecimientos_educativos["ID_DEPTO"] = establecimientos_educativos["ID_DEPTO"].apply(lambda x: x + 1 if x in [94007, 94014] else x)
+comunas_ee["ID_DEPTO"] = comunas_ee["ID_DEPTO"].apply(lambda x: x + 1 if x in [94007, 94014] else x)
+comunas_departamentos["ID_DEPTO"] = comunas_departamentos["ID_DEPTO"].apply(lambda x: x + 1 if x in [94007, 94014] else x)
 
 # Organizo los datos :)
 departamento = departamento.iloc[:, [3,2,1]].drop_duplicates()
 establecimientos_educativos = establecimientos_educativos.iloc[:, [1, 11, 2, 6, 7, 8, 9, 10]].drop_duplicates()
-
+comunas_departamentos = comunas_departamentos.iloc[:, [3,2,1]].drop_duplicates()
 #%%
 """---------------------------------------Padrón Población----------------------------------------------------------"""
 
 area_censal = padron_poblacion.iloc[:, [2, 3]].drop_duplicates()
 
 # Antes de reemplazar las comunas, guardamos los datos de ellas para la visualización por departamento
-padron_comunas = padron_poblacion.copy().rename(columns={'Area': 'ID_DEPTO'})
+comunas_padron = padron_poblacion.copy().rename(columns={'Area': 'ID_DEPTO'})
 
 padron_poblacion = padron_poblacion.iloc[:, [2, 0, 1]].drop_duplicates()
 
@@ -651,19 +655,6 @@ ax.set_yticks([])
 #%%
 """------------------------------------------Ejercicio ii)----------------------------------------------------------"""
                   
-# Tengo que agregar el análisis por COMUNA
-
-
-
-# centros_educativos_por_poblacion = dd.sql("""
-#                                           SELECT t.ID_DEPTO, t.Departamento,
-#                                           SUM(c.Jardines + c.Primarios + c.Secundarios) AS Total_EE,
-#                                           t.poblacion
-#                                           FROM total_pob_por_depto_con_nombre AS t
-#                                           JOIN cantidad_ee AS c
-#                                           ON c.ID_DEPTO = t.ID_DEPTO
-#                                           GROUP BY t.ID_DEPTO, t.Departamento, t.poblacion
-#                                           """).df()
 
 centros_educativos_por_departamento = dd.sql("""
     SELECT 
@@ -674,7 +665,7 @@ centros_educativos_por_departamento = dd.sql("""
         SUM(CASE WHEN p.Edad BETWEEN 0 AND 5 THEN p.Casos ELSE 0 END) AS total_jardin,
         SUM(CASE WHEN p.Edad BETWEEN 6 AND 11 THEN p.Casos ELSE 0 END) AS total_primario,
         SUM(CASE WHEN p.Edad BETWEEN 12 AND 18 THEN p.Casos ELSE 0 END) AS total_secundario
-    FROM padron_comunas AS p
+    FROM comunas_padron AS p
     JOIN comunas_departamentos AS d
     ON p.ID_DEPTO = d.ID_DEPTO
     WHERE d.ID_DEPTO > 3000
@@ -690,7 +681,7 @@ centros_educativos_por_departamento = dd.sql("""
         SUM(CASE WHEN p.Edad BETWEEN 0 AND 5 THEN p.Casos ELSE 0 END) AS total_jardin,
         SUM(CASE WHEN p.Edad BETWEEN 6 AND 11 THEN p.Casos ELSE 0 END) AS total_primario,
         SUM(CASE WHEN p.Edad BETWEEN 12 AND 18 THEN p.Casos ELSE 0 END) AS total_secundario
-    FROM padron_comunas AS p
+    FROM comunas_padron AS p
     JOIN comunas_departamentos AS d
     ON p.Descripción = d.Departamento
     WHERE d.ID_DEPTO < 3000
@@ -727,9 +718,6 @@ ax.scatter(
 ax.set_xlabel('Cantidad de habitantes (Millones)', fontsize='medium')  
 ax.set_ylabel('Cantidad de Escuelas', fontsize='medium')  
 
-# Configurar los cortes del eje X cada 5,000,000 habitantes
-#ax.set_xticks(np.arange(0, centros_educativos_por_departamento['total_poblacion'].max() + 2000000, 5000000))
-
 #%%
 
 cantidad_ee_por_provincia = dd.sql(
@@ -751,29 +739,6 @@ poblacion_por_provincia = dd.sql(
     JOIN departamento AS d
     ON d.ID_DEPTO = p.ID_DEPTO
     
-    GROUP BY d.ID_PROV
-            """).df()
-
-#%%
-cantidad_ee_por_provincia = dd.sql(
-            """
-    SELECT d.ID_PROV, COUNT(*)
-    FROM establecimientos_educativos AS e
-   
-    JOIN departamento AS d
-    ON d.ID_DEPTO = e.ID_DEPTO
-   
-    GROUP BY d.ID_PROV
-            """).df()
-           
-poblacion_por_provincia = dd.sql(
-            """
-    SELECT d.ID_PROV, SUM(Casos)
-    FROM padron_poblacion AS p
-   
-    JOIN departamento AS d
-    ON d.ID_DEPTO = p.ID_DEPTO
-   
     GROUP BY d.ID_PROV
             """).df()
             
@@ -783,134 +748,72 @@ poblacion_por_provincia = dd.sql(
 #Realizar un boxplot por cada provincia, de la cantidad de EE por cada
 #departamento de la provincia. Mostrar todos los boxplots en una misma
 #figura, ordenados por la mediana de cada provincia
-ee_por_depto_prov = dd.sql("""
-SELECT depto_provincia.ID_DEPTO, REPLACE(REPLACE(Provincia, 'TIERRA DEL FUEGO, ANTÁRTIDA E ISLAS DEL ATLÁNTICO SUR', 'TIERRA DEL FUEGO...'), 'CIUDAD AUTÓNOMA DE BUENOS AIRES', 'CABA') AS Provincia, ee_por_depto
-FROM depto_provincia
-LEFT OUTER JOIN cantidad_ee_por_deptos
-ON depto_provincia.ID_DEPTO = cantidad_ee_por_deptos.ID_DEPTO
+
+cantidad_ee_por_comunas = dd.sql("""
+                  SELECT ID_DEPTO, count(*) AS ee_por_depto
+                  FROM comunas_ee
+                  GROUP BY ID_DEPTO
+                  """).df()
+
+comunas_departamentos_provincias = dd.sql("""
+SELECT d.ID_DEPTO, p.Provincia, d.Departamento
+FROM comunas_departamentos AS d
+JOIN provincia AS p
+ON p.ID_PROV = d.ID_PROV
 """).df()
 
-
-
-
-
+ee_por_depto_prov_comunas = dd.sql("""
+SELECT cd.ID_DEPTO, REPLACE(REPLACE(Provincia, 'TIERRA DEL FUEGO, ANTÁRTIDA E ISLAS DEL ATLÁNTICO SUR', 'TIERRA DEL FUEGO...'), 'CIUDAD AUTÓNOMA DE BUENOS AIRES', 'CABA') AS Provincia, ee_por_depto
+FROM comunas_departamentos_provincias AS cd
+LEFT OUTER JOIN cantidad_ee_por_comunas AS ce
+ON cd.ID_DEPTO = ce.ID_DEPTO
+""").df()
 
 fig, ax = plt.subplots(figsize=(10, 6))
-ee_por_depto_prov.boxplot(by = ['Provincia'], column = ['ee_por_depto'], ax = ax, grid = False, showmeans = True)
-ax.set_xticklabels(ax.get_xticklabels(), rotation=-60, fontsize=5, ha='left')
-#plt.xticks(rotation=-60, fontsize=5, ha = 'left')
-ax.set_title('Cantidad de establecimientos Educativos por departamento por cada cada provincia')
-ax.set_ylabel('Cantidad de establecimientos Educativos por departamento')
-plt.suptitle('')  # Esto elimina el título de "Provincia"
 
-
-plt.tight_layout()
-
-
-# Añadimos un título y etiquetas a los ejes
-#ax.set_title('Cantidad de Establecimientos Educativos por Departamento y Provincia', fontsize=12)
-#ax.set_ylabel('Cantidad de Establecimientos Educativos por Departamento', fontsize=10)
-ax = sns.boxplot(x = 'Provincia',
-                 y = 'ee_por_depto',
-                 data = ee_por_depto_prov,
-                 ax = ax,
-                 showmeans = True,
-                 )
-ax.set_xticklabels(ax.get_xticklabels(), rotation=-60, fontsize=5, ha='left')
-#plt.xticks(rotation=-60, fontsize=5, ha = 'left')
-ax.set_title('Cantidad de establecimientos Educativos por departamento por cada cada provincia')
-ax.set_ylabel('Cantidad de establecimientos Educativos por departamento')
-plt.suptitle('')  # Esto elimina el título de "Provincia"
-
-
-
-
-plt.tight_layout()
-
-
-import seaborn as sns
-
-
-# Crear una figura y un eje para el gráfico
-fig, ax = plt.subplots(figsize=(10, 6))
-
-
-# Crear el gráfico de cajas con Seaborn
 sns.boxplot(x='Provincia',
             y='ee_por_depto',
-            data=ee_por_depto_prov,
+            data=ee_por_depto_prov_comunas,
             ax=ax,
             showmeans=True)
 
-
-# Ajustar las etiquetas del eje X para mejor visualización
 ax.set_xticklabels(ax.get_xticklabels(), rotation=-60, fontsize=8, ha='left')
 
-
-# Añadir título y etiquetas a los ejes
 ax.set_title('Cantidad de Establecimientos Educativos por Departamento y Provincia', fontsize=12)
 ax.set_ylabel('Cantidad de Establecimientos Educativos por Departamento', fontsize=10)
-
-
-# Eliminar el título generado por el parámetro 'by' de pandas (si lo hay)
-plt.suptitle('')  # Esto elimina el título de "Provincia"
-
-
-# Ajustar el layout para evitar solapamientos
 plt.tight_layout()
-
-
-# Si aún hay solapamiento, ajustamos manualmente el espacio entre el gráfico y los títulos
-plt.subplots_adjust(top=0.9)  # Este valor puede ajustarse según sea necesario
-
-
-# Mostrar el gráfico
-plt.show()
+plt.subplots_adjust(top=0.9)  
 
 #%%            
-"""------------------------------------------Ejercicio iv)----------------------------------------------------------"""           
-
-ejercicio_iii['proporcion_ee_1000_hab'] = (ejercicio_iii['ee_por_depto'] / ejercicio_iii['poblacion']) * 1000
+"""------------------------------------------Ejercicio iv)-----------------------------------------------------------"""           
 
 
-ejercicio_iii['proporcion_cc_1000_hab'] = (ejercicio_iii['cc_por_depto'] / ejercicio_iii['poblacion']) * 1000
+ejercicio_iii = ejercicio_iii.sort_values('poblacion')
 
-
-ejercicio_iii_para_grafico = dd.sql("""
-                                    SELECT *
-                                    FROM ejercicio_iii
-                                    WHERE cc_por_depto != 0
-                                    """).df()
-
-
+# Asegurarse de que ambas columnas tengan la misma cantidad de datos
 fig, ax = plt.subplots()
-ax.scatter(data = ejercicio_iii_para_grafico, x = 'proporcion_ee_1000_hab', y = 'proporcion_cc_1000_hab', s = 1)
-ax.set_title('Proporción EE vs CC por 1000 habitantes por departamentos')
-ax.set_xlabel('Proporción EE por 1000 hab')
-ax.set_ylabel('Proporción CC por 1000 hab')
 
+# Factor de escala para la línea naranja
+factor_escala = 10  
 
-ejercicio_iii_por_prov = dd.sql("""
-                                    SELECT Provincia, sum(ee_por_depto) as ee_por_prov, sum(cc_por_depto) as cc_por_prov, sum(poblacion) as poblacion
-                                    FROM ejercicio_iii
-                                    GROUP BY Provincia
-""").df()
+ax.plot(ejercicio_iii["poblacion"], 
+        ejercicio_iii["proporcion_ee_1000_hab"], 
+        marker='.', 
+        label='proporcion_ee_1000_hab')
 
+ax.plot(ejercicio_iii["poblacion"], 
+        ejercicio_iii["proporcion_cc_1000_hab"] * factor_escala, 
+        marker='.', 
+        label=f'proporcion_cc_1000_hab (x{factor_escala})')
 
-ejercicio_iii_por_prov['proporcion_ee_1000_hab'] = (ejercicio_iii_por_prov['ee_por_prov'] / ejercicio_iii_por_prov['poblacion']) * 1000
-
-
-ejercicio_iii_por_prov['proporcion_cc_1000_hab'] = (ejercicio_iii_por_prov['cc_por_prov'] / ejercicio_iii_por_prov['poblacion']) * 1000
-
-
-fig, ax = plt.subplots()
-ax.scatter(data = ejercicio_iii_por_prov, x = 'proporcion_ee_1000_hab', y = 'proporcion_cc_1000_hab')
-ax.set_title('Proporción EE vs CC por 1000 habitantes por provincias')
-ax.set_xlabel('Proporción EE por 1000 hab')
-ax.set_ylabel('Proporción CC por 1000 hab')
+ax.set_title('Proporción EE y proporción CC vs población por deptos')
+ax.set_xlabel('Población')
+ax.set_ylabel('Proporción por 1000 hab')
 
 
 
+
+######
 
 ejercicio_iii_por_prov = dd.sql("""
 SELECT *
@@ -927,48 +830,57 @@ ax.set_ylabel('Proporción por 1000 hab')
 ax.legend()
 plt.show()
 
+#%% Prueba seborn
+# Configurar el tamaño del gráfico
+plt.figure(figsize=(12, 6))
 
-ejercicio_iii = ejercicio_iii.sort_values('poblacion')
+# Reestructurar el DataFrame para seaborn
+df_melted = ejercicio_iii_por_prov.melt(id_vars=["Provincia"], 
+                                        value_vars=["proporcion_ee_1000_hab", "proporcion_cc_1000_hab"],
+                                        var_name="Tipo", 
+                                        value_name="Proporcion")
 
+# Crear el gráfico de barras superpuestas
+sns.barplot(data=df_melted, x="Provincia", y="Proporcion", hue="Tipo", palette=["blue", "orange"])
 
-fig, ax = plt.subplots()
-ax.plot('poblacion', 'proporcion_ee_1000_hab', data = ejercicio_iii, marker = '.')
-ax.plot('poblacion', 'proporcion_cc_1000_hab', data = ejercicio_iii, marker = '.')
-ax.set_title('Proporción EE y proporcion cc vs poblacion por deptos')
-ax.set_xlabel('Población')
-ax.set_ylabel('Proporción por 1000 hab')
-ax.legend()
+# Rotar etiquetas en el eje x para mejor visualización
+plt.xticks(rotation=90)
+
+# Agregar títulos y etiquetas
+plt.title("Proporción EE y CC por 1000 habitantes por provincia")
+plt.xlabel("Provincia")
+plt.ylabel("Proporción por 1000 habitantes")
+
+# Mostrar el gráfico
 plt.show()
 
+#%% Prueba 2 seaborn
 
-ejercicio_iii_por_prov['proporcion_entre_cc_y_ee_1000_hab'] = ejercicio_iii_por_prov['proporcion_cc_1000_hab'] / ejercicio_iii_por_prov['proporcion_ee_1000_hab']
-ejercicio_iii_por_prov['proporcion_entre_ee_y_cc_1000_hab'] = ejercicio_iii_por_prov['proporcion_ee_1000_hab'] / ejercicio_iii_por_prov['proporcion_cc_1000_hab']
+# Definir el factor de escala para las barras naranjas
+factor_escala = 10
 
+# Crear una copia del DataFrame y escalar la columna de 'proporcion_cc_1000_hab'
+df_escalado = ejercicio_iii_por_prov.copy()
+df_escalado["proporcion_cc_1000_hab"] *= factor_escala
 
+# Reestructurar el DataFrame para seaborn
+df_melted = df_escalado.melt(id_vars=["Provincia"], 
+                             value_vars=["proporcion_ee_1000_hab", "proporcion_cc_1000_hab"],
+                             var_name="Tipo", 
+                             value_name="Proporcion")
 
+# Crear el gráfico de barras superpuestas
+plt.figure(figsize=(12, 6))
+sns.barplot(data=df_melted, x="Provincia", y="Proporcion", hue="Tipo", palette=["blue", "orange"])
 
-ejercicio_iii_por_prov = dd.sql("""
-SELECT *
-FROM ejercicio_iii_por_prov
-ORDER BY PoblaciOn DESC""").df()
+# Rotar etiquetas en el eje x para mejor visualización
+plt.xticks(rotation=90)
 
+# Agregar títulos y etiquetas
+plt.title("Proporción EE y CC por 1000 habitantes por provincia (CC escalado x{})".format(factor_escala))
+plt.xlabel("Provincia")
+plt.ylabel("Proporción por 1000 habitantes")
 
+# Mostrar el gráfico
+plt.show()
 
-
-ejercicio_iii_por_prov = ejercicio_iii_por_prov.sort_values('poblacion')
-
-
-fig, ax = plt.subplots()
-ax.scatter(data = ejercicio_iii_por_prov, x = 'poblacion', y = 'proporcion_entre_cc_y_ee_1000_hab')
-ax.set_title('Proporción CC divido proporcion EE por 1000 habitantes por provincias vs pobalcion')
-ax.set_xlabel('Población')
-ax.set_ylabel('Proporción CC por 1000 hab/ proporción EE por 1000 hab')
-fig.subplots_adjust(top=1)  # Ajusta el espacio superior (aumentar el valor si es necesario)
-
-
-fig, ax = plt.subplots()
-ax.scatter(data = ejercicio_iii_por_prov, x = 'poblacion', y = 'proporcion_entre_ee_y_cc_1000_hab')
-ax.set_title('Proporción EE divido proporcion CC por 1000 habitantes por provincias vs pobalcion')
-ax.set_xlabel('Población')
-ax.set_ylabel('Proporción EE por 1000 hab/ proporción CC por 1000 hab')
-fig.subplots_adjust(top=1)  # Ajusta el espacio superior (aumentar el valor si es necesario)
