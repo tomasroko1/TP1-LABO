@@ -778,7 +778,36 @@ ax.set_ylabel('Cantidad de Establecimientos Educativos por nivel', fontsize='med
 ax.legend(title="Nivel Educativo", loc="upper left")
 
 fig.savefig('ii')
+#%%
 
+fig, ax = plt.subplots(figsize=(10, 6))
+
+
+plt.rcParams['font.family'] = 'sans-serif'
+
+ax.scatter(
+    centros_educativos_por_departamento['total_poblacion'],
+    centros_educativos_por_departamento['total_jardin'],
+    s=10, color="green", label="Jardín"
+)
+
+ax.scatter(
+    centros_educativos_por_departamento['total_poblacion'],
+    centros_educativos_por_departamento['total_primario'],
+    s=10, color="blue", label="Primario"
+)
+
+ax.scatter(
+    centros_educativos_por_departamento['total_poblacion'],
+    centros_educativos_por_departamento['total_secundario'],
+    s=10, color="red", label="Secundario"
+)
+
+ax.set_xlabel('Cantidad de habitantes', fontsize='medium')  
+ax.set_ylabel('Cantidad de Alumnos por nivel educativo', fontsize='medium')  
+ax.legend(title="Nivel Educativo", loc="upper left")
+
+fig.savefig('ii')
 #%% R2
 
 # Definimos x e y para cada nivel
