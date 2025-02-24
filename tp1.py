@@ -860,7 +860,7 @@ ax.set_ylabel('Poblacion', fontsize='medium')
 plt.tight_layout()
 plt.xticks(rotation=-60, fontsize=5, ha = 'left')
             
-fig.savefig('población por provincias')
+fig.savefig('población por provincia')
 
 #%%
 """------------------------------------------Visualiación iii)----------------------------------------------------------"""
