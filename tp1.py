@@ -829,7 +829,6 @@ sns.boxplot(x='Provincia',
 
 ax.set_xticklabels(ax.get_xticklabels(), rotation=-60, fontsize=8, ha='left')
 
-ax.set_title('Cantidad de Establecimientos Educativos por Departamento y Provincia', fontsize=12)
 ax.set_ylabel('Cantidad de Establecimientos Educativos por Departamento', fontsize=10)
 plt.tight_layout()
 plt.subplots_adjust(top=0.9)  
