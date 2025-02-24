@@ -647,25 +647,33 @@ ejercicio_iv = dd.sql("""
 """------------------------------------------Ejercicio i)-----------------------------------------------------------"""
 
 cantidad_de_cc_por_provincia = dd.sql("""
-                                 	SELECT ID_PROV, sum(cc_por_depto) as cant_de_cc_por_prov
-                                 	FROM cantidad_cc_por_deptos
-                                 	GROUP BY ID_PROV
+                                  SELECT ID_PROV, sum(cc_por_depto) as cant_de_cc_por_prov
+                                  FROM cantidad_cc_por_deptos
+                                  GROUP BY ID_PROV
 """).df()
 
+
 cantidad_de_cc_por_provincia_con_nombre = dd.sql("""
-                                             	SELECT c.cant_de_cc_por_prov, REPLACE(REPLACE(Provincia, 'TIERRA DEL FUEGO, ANTÁRTIDA E ISLAS DEL ATLÁNTICO SUR', 'TIERRA DEL FUEGO...'), 'CIUDAD AUTÓNOMA DE BUENOS AIRES', 'CABA') AS Provincia
-                                             	FROM provincia as p
-                                             	JOIN cantidad_de_cc_por_provincia AS c
-                                             	ON p.ID_PROV = c.ID_PROV
-                                             	ORDER BY cant_de_cc_por_prov DESC
-                                             	""").df()
+                                  SELECT
+                                      CASE
+                                          WHEN c.cant_de_cc_por_prov IS NULL
+                                          THEN 0
+                                          ELSE cant_de_cc_por_prov
+                                      END AS cant_de_cc_por_prov,
+                                      REPLACE(REPLACE(Provincia, 'TIERRA DEL FUEGO, ANTÁRTIDA E ISLAS DEL ATLÁNTICO SUR', 'TIERRA DEL FUEGO...'), 'CIUDAD AUTÓNOMA DE BUENOS AIRES', 'CABA') AS Provincia
+                                  FROM provincia as p
+                                  LEFT OUTER JOIN cantidad_de_cc_por_provincia AS c
+                                  ON p.ID_PROV = c.ID_PROV
+                                  ORDER BY cant_de_cc_por_prov DESC
+    """).df()
 
 
 fig, ax = plt.subplots()
-
 plt.rcParams['font.family'] = 'sans-serif'
 
+
 ax.bar(data = cantidad_de_cc_por_provincia_con_nombre, x='Provincia', height='cant_de_cc_por_prov')
+
 
 ax.set_title('Cantidad de centros culturales por provincias')
 ax.set_ylabel('Cantidad de centros culturales', fontsize='medium')
@@ -674,8 +682,8 @@ plt.xticks(rotation=-60, fontsize=5, ha = 'left')
 ax.bar_label(ax.containers[0], fontsize=6)
 ax.set_yticks([])
 
-
 fig.savefig('i')
+
 #%%
 """------------------------------------------Ejercicio ii)----------------------------------------------------------"""
              
@@ -847,7 +855,7 @@ proporciones["proporcion_cc_1000_hab"] = (proporciones["cc_por_depto"] / proporc
 ejercicio_iii.fillna(0, inplace=True)
 
 # Ordenamos el proporciones por población para una mejor visualización
-proporciones = ejercicio_iii.sort_values("poblacion")
+proporciones = proporciones.sort_values("poblacion")
 
 
 ejercicio_iii_por_prov = dd.sql("""
@@ -856,7 +864,7 @@ ejercicio_iii_por_prov = dd.sql("""
                                     GROUP BY Provincia
 """).df()
 
-proporciones = ejercicio_iii.sort_values('poblacion')
+proporciones = proporciones.sort_values('poblacion')
 
 
 ## Graficamos
@@ -870,14 +878,14 @@ proporciones["Provincia"] = proporciones["Provincia"].replace({
 })
 
 # Reestructurar el DataFrame para Seaborn
-df_melted = proporciones.melt(id_vars=["Provincia"],
+df_resultado = proporciones.melt(id_vars=["Provincia"],
                               value_vars=["proporcion_ee_1000_hab", "proporcion_cc_1000_hab"],
                               var_name="Tipo",
                               value_name="Proporción")
 
 # Crear el gráfico de barras agrupadas
 plt.figure(figsize=(12, 6))
-sns.barplot(data=df_melted, x="Provincia", y="Proporción", hue="Tipo", palette=["blue", "orange"], errorbar=None)
+sns.barplot(data=df_resultado, x="Provincia", y="Proporción", hue="Tipo", palette=["blue", "orange"], errorbar=None)
 
 # Rotar etiquetas en el eje X para mejor visualización
 plt.xticks(rotation=90)
@@ -911,15 +919,15 @@ proporciones["Provincia"] = proporciones["Provincia"].replace({
     "Ciudad Autónoma De Buenos Aires": "Caba"
 })
 
-df_melted = proporciones.melt(id_vars=["Provincia"],
+df_resultado = proporciones.melt(id_vars=["Provincia"],
                               value_vars=["proporcion_ee_1000_hab", "proporcion_cc_1000_hab"],
                               var_name="Tipo",
                               value_name="Proporción")
 
-df_melted.loc[df_melted["Tipo"] == "proporcion_cc_1000_hab", "Proporción"] *= factor_escala_cc
+df_resultado.loc[df_resultado["Tipo"] == "proporcion_cc_1000_hab", "Proporción"] *= factor_escala_cc
 
 plt.figure(figsize=(12, 6))
-sns.barplot(data=df_melted, x="Provincia", y="Proporción", hue="Tipo", palette=["blue", "orange"], errorbar=None)
+sns.barplot(data=df_resultado, x="Provincia", y="Proporción", hue="Tipo", palette=["blue", "orange"], errorbar=None)
 
 plt.xticks(rotation=-50, fontsize=8)  
 plt.yticks(fontsize=8)
