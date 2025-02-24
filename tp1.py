@@ -716,10 +716,11 @@ cantidad_ee_comunas = dd.sql("""
     GROUP BY d.ID_PROV, d.ID_DEPTO, d.Departamento
 """).df()
 
-        
+# El siguiente dataset tiene más datos de los que son usados inmediatamente para el primer gráfico, pero que usamos posteriormente        
+
 centros_educativos_por_departamento = dd.sql("""
     SELECT 
-        p.ID_DEPTO, 
+        p.ID_DEPTO, c.Jardines, c.Primarios, c.Secundarios,
         SUM(p.Casos) AS total_poblacion,
         (Jardines + Primarios + Secundarios) AS total_ee,
         SUM(CASE WHEN p.Edad BETWEEN 0 AND 5 THEN p.Casos ELSE 0 END) AS total_jardin,
@@ -734,7 +735,7 @@ centros_educativos_por_departamento = dd.sql("""
     UNION
 
     SELECT 
-        p.ID_DEPTO, 
+        p.ID_DEPTO, c.Jardines, c.Primarios, c.Secundarios,
         SUM(p.Casos) AS total_poblacion,
         (Jardines + Primarios + Secundarios) AS total_ee,
         SUM(CASE WHEN p.Edad BETWEEN 0 AND 5 THEN p.Casos ELSE 0 END) AS total_jardin,
@@ -756,19 +757,19 @@ plt.rcParams['font.family'] = 'sans-serif'
 
 ax.scatter(
     centros_educativos_por_departamento['total_poblacion'],
-    centros_educativos_por_departamento['total_jardin'],
+    centros_educativos_por_departamento['Jardines'],
     s=10, color="green", label="Jardín"
 )
 
 ax.scatter(
     centros_educativos_por_departamento['total_poblacion'],
-    centros_educativos_por_departamento['total_primario'],
+    centros_educativos_por_departamento['Primarios'],
     s=10, color="blue", label="Primario"
 )
 
 ax.scatter(
     centros_educativos_por_departamento['total_poblacion'],
-    centros_educativos_por_departamento['total_secundario'],
+    centros_educativos_por_departamento['Secundarios'],
     s=10, color="red", label="Secundario"
 )
 
