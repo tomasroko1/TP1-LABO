@@ -839,8 +839,8 @@ poblacion_por_provincia_con_nombre = dd.sql("""
 
 
 poblacion_por_provincia_con_nombre["Provincia"] = poblacion_por_provincia_con_nombre["Provincia"].replace({
-    "TIERRA DEL FUEGO, ANTÁRTIDA E ISLAS DEL ATLÁNTICO SUR": "Tierra del Fuego",
-    "CIUDAD AUTÓNOMA DE BUENOS AIRES": "Caba"
+    "TIERRA DEL FUEGO, ANTÁRTIDA E ISLAS DEL ATLÁNTICO SUR": "TIERRA DEL FUEGO",
+    "CIUDAD AUTÓNOMA DE BUENOS AIRES": "CABA"
 })
 
 fig, ax = plt.subplots()
@@ -860,7 +860,7 @@ ax.set_ylabel('Poblacion', fontsize='medium')
 plt.tight_layout()
 plt.xticks(rotation=-60, fontsize=5, ha = 'left')
             
-fig.savefig('población por provincia')
+fig.savefig('población por provincia.')
 
 #%%
 """------------------------------------------Visualiación iii)----------------------------------------------------------"""
