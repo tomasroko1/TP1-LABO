@@ -818,7 +818,7 @@ cantidad_ee_por_provincia = dd.sql(
             
 poblacion_por_provincia = dd.sql(
             """
-    SELECT d.ID_PROV, SUM(Casos)
+    SELECT d.ID_PROV, SUM(Casos) AS poblacion
     FROM padron_poblacion AS p
     
     JOIN departamento AS d
@@ -826,6 +826,39 @@ poblacion_por_provincia = dd.sql(
     
     GROUP BY d.ID_PROV
             """).df()
+            
+fig.savefig('población por provincias')
+#%%
+
+poblacion_por_provincia_con_nombre = dd.sql("""
+                                  SELECT *
+                                  FROM provincia as p
+                                  LEFT OUTER JOIN poblacion_por_provincia AS t
+                                  ON p.ID_PROV = t.ID_PROV
+                                  ORDER BY poblacion DESC                                  
+""").df()
+
+
+poblacion_por_provincia_con_nombre["Provincia"] = poblacion_por_provincia_con_nombre["Provincia"].replace({
+    "TIERRA DEL FUEGO, ANTÁRTIDA E ISLAS DEL ATLÁNTICO SUR": "Tierra del Fuego",
+    "CIUDAD AUTÓNOMA DE BUENOS AIRES": "Caba"
+})
+
+fig, ax = plt.subplots()
+
+
+plt.rcParams['font.family'] = 'sans-serif'
+
+
+ax.bar(data = poblacion_por_provincia_con_nombre, x='Provincia', height='poblacion')
+
+
+ax.set_title('Poblacion por provincias')
+ax.set_ylabel('Poblacion', fontsize='medium')
+
+
+plt.tight_layout()
+plt.xticks(rotation=-60, fontsize=5, ha = 'left')
             
 #%%
 """------------------------------------------Visualiación iii)----------------------------------------------------------"""
