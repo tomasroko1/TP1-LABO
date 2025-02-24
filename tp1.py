@@ -827,7 +827,6 @@ poblacion_por_provincia = dd.sql(
     GROUP BY d.ID_PROV
             """).df()
             
-fig.savefig('población por provincias')
 #%%
 
 poblacion_por_provincia_con_nombre = dd.sql("""
@@ -854,12 +853,15 @@ ax.bar(data = poblacion_por_provincia_con_nombre, x='Provincia', height='poblaci
 
 
 ax.set_title('Poblacion por provincias')
+ax.set_xlabel('')
 ax.set_ylabel('Poblacion', fontsize='medium')
 
 
 plt.tight_layout()
 plt.xticks(rotation=-60, fontsize=5, ha = 'left')
             
+fig.savefig('población por provincias')
+
 #%%
 """------------------------------------------Visualiación iii)----------------------------------------------------------"""
                  
