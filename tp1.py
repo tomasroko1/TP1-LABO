@@ -1009,7 +1009,6 @@ proporciones["proporcion_cc_1000_hab"] = (proporciones["cc_por_depto"] / proporc
 # Reemplazamos NaN por 0 en caso de divisiones por 0
 ejercicio_iii.fillna(0, inplace=True)
 
-# Ordenamos el proporciones por población para una mejor visualización
 proporciones = proporciones.sort_values("poblacion")
 
 
@@ -1021,44 +1020,33 @@ ejercicio_iii_por_prov = dd.sql("""
 
 proporciones = proporciones.sort_values('poblacion')
 
-
-## Graficamos
-
-# Preparar los datos para el gráfico
-proporciones["Provincia"] = proporciones["Provincia"].str.title()  # Capitalizar nombres de provincias
+proporciones["Provincia"] = proporciones["Provincia"].str.title()  
 
 proporciones["Provincia"] = proporciones["Provincia"].replace({
     "Tierra Del Fuego, Antártida E Islas Del Atlántico Sur": "Tierra del Fuego",
     "Ciudad Autónoma De Buenos Aires": "Caba"
 })
 
-# Reestructurar el DataFrame para Seaborn
 df_resultado = proporciones.melt(id_vars=["Provincia"],
                               value_vars=["proporcion_ee_1000_hab", "proporcion_cc_1000_hab"],
                               var_name="Tipo",
                               value_name="Proporción")
 
-# Crear el gráfico de barras agrupadas
 plt.figure(figsize=(12, 6))
 sns.barplot(data=df_resultado, x="Provincia", y="Proporción", hue="Tipo", palette=["blue", "orange"], errorbar=None)
 
-# Rotar etiquetas en el eje X para mejor visualización
 plt.xticks(rotation=90)
 
-# Agregar títulos y etiquetas
 plt.title("Proporción de EE y CC cada 1000 habitantes por provincia")
 plt.xlabel("Provincia")
 plt.ylabel("Proporción por 1000 habitantes")
 
-plt.xticks(rotation=-60, fontsize=8)  # Ajusta el ángulo y el tamaño de las etiquetas
+plt.xticks(rotation=-60, fontsize=8)  
 plt.yticks(fontsize=8)
-plt.tight_layout()  # Ajusta el gráfico para que no se solape
+plt.tight_layout() 
 
-
-# Mostrar la leyenda correctamente
 plt.legend(title="Tipo de Establecimiento", labels=["EE cada 1000 hab", "CC cada 1000 hab"])
 
-# Mostrar el gráfico
 plt.show()
 
 fig.savefig('iv')
@@ -1097,6 +1085,9 @@ plt.legend(title="Tipo de Establecimiento", labels=["EE cada 1000 hab", f"CC cad
 fig.savefig('iv con factor escala 20 para CC')
 
 #%%
-
-
+""" 
+                                     ###############################################################
+                                     #####  Muchas gracias y perdón por este desorden final :) ##### 
+                                     ###############################################################
+"""
 
