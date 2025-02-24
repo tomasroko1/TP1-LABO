@@ -1,8 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Feb 11 21:52:13 2025
+    11/02/2025 
 
-@author: tomas
+Trabajo práctico 1 - Laboratorio de datos - Verano 2025
+
+Integrantes : Roko, Tomas
+              Baddi, Marina
+              Ballera, Alexander 
 """
 
 #     Importamos librerías
@@ -748,10 +752,9 @@ centros_educativos_por_departamento = dd.sql("""
     GROUP BY p.ID_DEPTO, Jardines, Primarios, Secundarios
 """).df()
 
-
+# Orden de colores 1
 
 fig, ax = plt.subplots(figsize=(10, 6))
-
 
 plt.rcParams['font.family'] = 'sans-serif'
 
@@ -778,6 +781,65 @@ ax.set_ylabel('Cantidad de Establecimientos Educativos por nivel', fontsize='med
 ax.legend(title="Nivel Educativo", loc="upper left")
 
 fig.savefig('ii')
+#%% Orden de colores 2
+
+fig, ax = plt.subplots(figsize=(10, 6))
+
+plt.rcParams['font.family'] = 'sans-serif'
+
+
+ax.scatter(
+    centros_educativos_por_departamento['total_poblacion'],
+    centros_educativos_por_departamento['Primarios'],
+    s=10, color="blue", label="Primario"
+)
+
+ax.scatter(
+    centros_educativos_por_departamento['total_poblacion'],
+    centros_educativos_por_departamento['Secundarios'],
+    s=10, color="red", label="Secundario"
+)
+
+ax.scatter(
+    centros_educativos_por_departamento['total_poblacion'],
+    centros_educativos_por_departamento['Jardines'],
+    s=10, color="green", label="Jardín"
+)
+
+
+ax.set_xlabel('Cantidad de habitantes', fontsize='medium')  
+ax.set_ylabel('Cantidad de Establecimientos Educativos por nivel', fontsize='medium')  
+ax.legend(title="Nivel Educativo", loc="upper left")
+
+#%% Orden de colores 3
+
+fig, ax = plt.subplots(figsize=(10, 6))
+
+plt.rcParams['font.family'] = 'sans-serif'
+
+
+ax.scatter(
+    centros_educativos_por_departamento['total_poblacion'],
+    centros_educativos_por_departamento['Secundarios'],
+    s=10, color="red", label="Secundario"
+)
+
+ax.scatter(
+    centros_educativos_por_departamento['total_poblacion'],
+    centros_educativos_por_departamento['Jardines'],
+    s=10, color="green", label="Jardín"
+)
+
+ax.scatter(
+    centros_educativos_por_departamento['total_poblacion'],
+    centros_educativos_por_departamento['Primarios'],
+    s=10, color="blue", label="Primario"
+)
+
+ax.set_xlabel('Cantidad de habitantes', fontsize='medium')  
+ax.set_ylabel('Cantidad de Establecimientos Educativos por nivel', fontsize='medium')  
+ax.legend(title="Nivel Educativo", loc="upper left")
+
 #%%
 
 fig, ax = plt.subplots(figsize=(10, 6))
@@ -786,20 +848,20 @@ fig, ax = plt.subplots(figsize=(10, 6))
 plt.rcParams['font.family'] = 'sans-serif'
 
 ax.scatter(
-    centros_educativos_por_departamento['total_poblacion'],
     centros_educativos_por_departamento['total_jardin'],
+    centros_educativos_por_departamento['Jardines'],
     s=10, color="green", label="Jardín"
 )
 
 ax.scatter(
-    centros_educativos_por_departamento['total_poblacion'],
     centros_educativos_por_departamento['total_primario'],
+    centros_educativos_por_departamento['Primarios'],
     s=10, color="blue", label="Primario"
 )
 
 ax.scatter(
-    centros_educativos_por_departamento['total_poblacion'],
     centros_educativos_por_departamento['total_secundario'],
+    centros_educativos_por_departamento['Secundarios'],
     s=10, color="red", label="Secundario"
 )
 
@@ -807,7 +869,6 @@ ax.set_xlabel('Cantidad de habitantes', fontsize='medium')
 ax.set_ylabel('Cantidad de Alumnos por nivel educativo', fontsize='medium')  
 ax.legend(title="Nivel Educativo", loc="upper left")
 
-fig.savefig('ii')
 #%% R2
 
 # Definimos x e y para cada nivel
@@ -1004,7 +1065,7 @@ fig.savefig('iv')
 #%% Con factor escalante
 
 # Factor de escala
-factor_escala_cc = 20  
+factor_escala_cc = 30  
 
 proporciones["Provincia"] = proporciones["Provincia"].str.title()  
 
@@ -1027,11 +1088,11 @@ plt.xticks(rotation=-50, fontsize=8)
 plt.yticks(fontsize=8)
 plt.tight_layout()  
 
-plt.title("Proporción de EE y CC cada 1000 habitantes por provincia")
+plt.title(" ")
 plt.xlabel("Provincia")
-plt.ylabel("Proporción por 1000 habitantes")
+plt.ylabel(" ")
 
-plt.legend(title="Tipo de Establecimiento", labels=["EE cada 1000 hab", f"CC cada 1000 hab (x{factor_escala_cc})"])
+plt.legend(title="Tipo de Establecimiento", labels=["EE cada 1000 hab", f"CC cada 30000 hab"])
 
 fig.savefig('iv con factor escala 20 para CC')
 
