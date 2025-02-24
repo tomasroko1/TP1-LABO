@@ -737,16 +737,11 @@ centros_educativos_por_departamento = dd.sql("""
 
 
 
-
-
-
-# Crear la figura y los ejes
 fig, ax = plt.subplots(figsize=(10, 6))
 
-# Configurar estilos
+
 plt.rcParams['font.family'] = 'sans-serif'
 
-# Graficar cada nivel educativo con colores distintos
 ax.scatter(
     centros_educativos_por_departamento['total_poblacion'],
     centros_educativos_por_departamento['total_jardin'],
@@ -765,16 +760,11 @@ ax.scatter(
     s=10, color="red", label="Secundario"
 )
 
-# Configurar título y etiquetas 
 ax.set_xlabel('Cantidad de habitantes', fontsize='medium')  
 ax.set_ylabel('Cantidad de Establecimientos Educativos por nivel', fontsize='medium')  
-
-# Agregar la leyenda para identificar los colores
 ax.legend(title="Nivel Educativo", loc="upper left")
 
-# Configurar los cortes del eje X
-# ax.set_xticks(np.arange(0, centros_educativos_por_departamento['total_poblacion'].max() + 2000000, 5000000))
-
+fig.savefig('ii')
 
 #%%
 
