@@ -674,6 +674,8 @@ plt.xticks(rotation=-60, fontsize=5, ha = 'left')
 ax.bar_label(ax.containers[0], fontsize=6)
 ax.set_yticks([])
 
+
+fig.savefig('i')
 #%%
 """------------------------------------------Ejercicio ii)----------------------------------------------------------"""
              
@@ -832,6 +834,7 @@ ax.set_ylabel('Cantidad de Establecimientos Educativos por Departamento', fontsi
 plt.tight_layout()
 plt.subplots_adjust(top=0.9)  
 
+fig.savefig('iii')
 #%%            
 """------------------------------------------Ejercicio iv)-----------------------------------------------------------"""           
 
@@ -896,46 +899,37 @@ plt.legend(title="Tipo de Establecimiento", labels=["EE cada 1000 hab", "CC cada
 # Mostrar el gráfico
 plt.show()
 
+fig.savefig('iv')
 #%% Con factor escalante
 
-# Definir el factor de escala
-factor_escala_cc = 20  # Puedes ajustar este valor según lo necesites
+# Factor de escala
+factor_escala_cc = 20  
 
-# Preparar los datos para el gráfico
-proporciones["Provincia"] = proporciones["Provincia"].str.title()  # Capitalizar nombres de provincias
+proporciones["Provincia"] = proporciones["Provincia"].str.title()  
 
 proporciones["Provincia"] = proporciones["Provincia"].replace({
     "Tierra Del Fuego, Antártida E Islas Del Atlántico Sur": "Tierra del Fuego",
     "Ciudad Autónoma De Buenos Aires": "Caba"
 })
 
-# Reestructurar el DataFrame para Seaborn
 df_melted = proporciones.melt(id_vars=["Provincia"],
                               value_vars=["proporcion_ee_1000_hab", "proporcion_cc_1000_hab"],
                               var_name="Tipo",
                               value_name="Proporción")
 
-# Aplicar el factor de escala SOLO en el gráfico (sin modificar el DataFrame)
 df_melted.loc[df_melted["Tipo"] == "proporcion_cc_1000_hab", "Proporción"] *= factor_escala_cc
 
-# Crear el gráfico de barras agrupadas
 plt.figure(figsize=(12, 6))
 sns.barplot(data=df_melted, x="Provincia", y="Proporción", hue="Tipo", palette=["blue", "orange"], errorbar=None)
 
-# Rotar etiquetas en el eje X para mejor visualización
-plt.xticks(rotation=-50, fontsize=8)  # Ajusta el ángulo y el tamaño de las etiquetas
+plt.xticks(rotation=-50, fontsize=8)  
 plt.yticks(fontsize=8)
-plt.tight_layout()  # Ajusta el gráfico para que no se solape
+plt.tight_layout()  
 
-# Agregar títulos y etiquetas
 plt.title("Proporción de EE y CC cada 1000 habitantes por provincia")
 plt.xlabel("Provincia")
 plt.ylabel("Proporción por 1000 habitantes")
 
-# Mostrar la leyenda correctamente con el factor de escala indicado
 plt.legend(title="Tipo de Establecimiento", labels=["EE cada 1000 hab", f"CC cada 1000 hab (x{factor_escala_cc})"])
 
-# Mostrar el gráfico
-plt.show()
-
-
+fig.savefig('iv con factor escala 20 para CC')
