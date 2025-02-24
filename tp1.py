@@ -11,11 +11,12 @@ import pandas as pd
 import duckdb as dd
 import seaborn as sns
 import matplotlib.pyplot as plt
+import numpy as np
 
 #%%   Cargamos los archivos
 
 establecimientos_educativos = pd.read_excel('2022_padron_oficial_establecimientos_educativos.xlsx')
-#940011
+
 centros_culturales = pd.read_csv('centros_culturales.csv')
 
 padron_poblacion = pd.read_excel('padron_poblacion.xlsX')
@@ -76,24 +77,46 @@ mails_cc_multiples = dd.sql("""
                            
 mails_cc_multiples['Mail'] = mails_cc_multiples['Mail'].str.split(',')
 
-i=0
-for index, row in mails_cc_multiples.iterrows():
-    for x in row['Mail']:
-        cc_mails_simples.loc[737+i]=row['Latitud'], row['Longitud'], row['Nombre'], x
-        i+=1
-       
+def procesar_mails(mails_cc_multiples, cc_mails_simples, indice=737):
+    """
+    Procesa los mails de 'mails_cc_multiples' y los inserta en 'cc_mails_simples'.
+    
+    Parámetros:
+    - mails_cc_multiples: DataFrame previo a la descomposicón de Mail en valores atómicos.
+    - cc_mails_simples: DataFrame donde se guardan los valores procesados.
+    - indice: Índice base para la insertar nuevos valores.
+
+    Devuelve:
+    - cc_mails_simples actualizado con los valores procesados.
+    """
+    mails_cc_multiples['Mail'] = mails_cc_multiples['Mail'].apply(lambda x: str(x).split(', ') if isinstance(x, str) else [])
+
+    i = 0
+    for index, row in mails_cc_multiples.iterrows():
+        for x in row['Mail']:
+            cc_mails_simples.loc[indice + i] = [row['Latitud'], row['Longitud'], row['Nombre'], x]
+            i += 1
+
+    return cc_mails_simples
+
+# Llamamos a la función
+cc_mails_simples = procesar_mails(mails_cc_multiples, cc_mails_simples)
+
+# Actualizamos el dataframe final.
 mails_cc = dd.sql("""
                     SELECT *
                     FROM cc_mails_simples
                     WHERE Mail NOT IN ( '', ' ');
-""").df()
+                  """).df()
                  
 mails_cc = dd.sql("""
-                          SELECT Latitud, Longitud, Nombre, REPLACE(Mail,' ', '') AS Mail
-                          FROM mails_cc""").df()
-#No me estaría sacando el espacio que aparece adelnte de algunos mails
+                  SELECT Latitud, Longitud, Nombre, REPLACE(Mail,' ', '') AS Mail
+                  FROM mails_cc""").df()
 
-
+# Eliminamos los dataframe auxiliares
+del cc_mails_simples
+del subconsulta_mails_multiples
+del mails_cc_multiples
 #%%
 
 """----------------------------------Métrica 2 - Establecimientos Educativos----------------------------------------"""
@@ -178,6 +201,8 @@ establecimientos_educativos["Departamento"] = establecimientos_educativos["Depar
 # Corregimos el 1§ DE MAYO
 establecimientos_educativos.loc[(establecimientos_educativos["Jurisdicción"] == "CHACO") & (establecimientos_educativos["Departamento"] == "1§ DE MAYO"), "Departamento"] = "1 DE MAYO"
 
+# Eliminamos la lista cols auxiliar
+del cols
 #%%
 
 """-------------------------------------Padrón Población------------------------------------------------------------"""
@@ -197,12 +222,12 @@ def calcular_largo_areas():
         area_fila = sub_df[sub_df["Unnamed: 1"].astype(str).str.startswith("AREA #", na=False)]
 
         if not area_fila.empty:
-            # Obtener el índice de la fila del área
+            # Obtenemos el índice de la fila del área
             area_index = area_fila.index[0]
             codigo_area = padron_poblacion.loc[area_index, "Unnamed: 1"]
             nombre_area = padron_poblacion.loc[area_index, "Unnamed: 2"]
 
-            # Contar filas hasta el  próximo "AREA #"
+            # Contamos filas hasta el próximo "AREA #"
             fila_actual = area_index + 2  # Saltamos 2 filas después del área (Todas las tablas arrancan dos filas despues del 'AREA #')
             contador = -3 # Corrijo un desface que me produce la función al final (por eso arranco de -3, pues todas las areas tenían 3 mas que el largo real)
 
@@ -215,65 +240,59 @@ def calcular_largo_areas():
             largo_areas.append((codigo_area, nombre_area, contador))
             i = fila_actual
     
-
-    # A ESTO LO HAGO PORQUE SE CONFUNDE EL PROGRAMA CON EL FINAL DE TODO (porque al final esta el resumen)
+    # Corregimos el último registro manualmente, porque la función continúa hasta el resumen del censo
     largo_areas[len(largo_areas)-1] = tuple(('AREA # 94015', 'Ushuaia', 102))
 
     return largo_areas
 
-areas_info = calcular_largo_areas()
-
 def extraer_bloques_variable_longitudes(
     df,
     areas_info,
-    start_index=15,  # Arranca en df.iloc[15] (0-based)
-    skip_size=5
+    indice_inicial=15, 
+    largo_salgo=5
 ):
     """
     df: DataFrame original.
     areas_info: lista de tuplas (nombre_area, largo), en orden. 
                 Ej: [("AREA # 02007", 110), ("AREA # 02014", 108), ...]
-    start_index: índice 0-based donde empezar. Si queremos que la 'primera fila' 
-                 sea la 15 contando desde 0, ponemos 15.
-    skip_size: cuántas filas saltear tras cada bloque.
+    indice_inicial: Es el indice que nos asegura arrancar a contar desde los datos del primer registro censal.
+    skip_size: Cuántas filas saltar para cada bloque.
 
     Devuelve: DataFrame concatenado de todos los bloques, 
               con una columna 'Area' que indica el nombre de área.
     """
-    # Asegurar que el índice sea 0..N consecutivo
+    
     df = df.reset_index(drop=True)
     
-    current_index = start_index
-    blocks = []
+    indice_actual = indice_inicial
+    bloques = []
     
-    for codigo_area, nombre_area, length in areas_info:
-        # Verifica si hay suficientes filas para tomar 'length' desde current_index
-        if current_index + length > len(df):
+    for codigo_area, nombre_area, largo in areas_info:
+        # Verifica si hay suficientes filas para tomar 'largo' desde indice_actual
+        if indice_actual + largo > len(df):
             # No hay más filas suficientes, cortamos aquí
             break
         
-        # Extraer 'length' filas
-        bloque = df.iloc[current_index : current_index + length].copy()
+        # Extraer 'largo' filas
+        bloque = df.iloc[indice_actual : indice_actual + largo].copy()
         
         # Asignamos el nombre y el código del área
         bloque['Area'] = codigo_area
         bloque['Descripción'] = nombre_area
         
+        bloques.append(bloque)
         
-        
-        blocks.append(bloque)
-        
-        # Avanzar el puntero length + skip_size
-        current_index += length + skip_size
+        # Avanzar el puntero length + largo_salgo
+        indice_actual += largo + largo_salgo
     
     # Unir todos los bloques en un DataFrame
-    if blocks:
-        return pd.concat(blocks, ignore_index=True)
+    if bloques:
+        return pd.concat(bloques, ignore_index=True)
     else:
         return pd.DataFrame()
 
 
-padron_poblacion = extraer_bloques_variable_longitudes(padron_poblacion, areas_info)
+padron_poblacion = extraer_bloques_variable_longitudes(padron_poblacion, calcular_largo_areas())
 
 # saco la 1ra columna de nulls
 padron_poblacion.drop(columns=['CEPAL/CELADE Redatam+SP 01/30/2025'], inplace=True)
@@ -313,6 +332,7 @@ localidad_cc = centros_culturales.iloc[:, [0, 7, 8, 1, 2]].drop_duplicates()
 
 provincia = centros_culturales.iloc[:, [1, 3]].drop_duplicates()
 
+# Función para extraer el código de departamento a partir del codigo de localidad
 def extraer_id_depto(cod_loc):
     cod_loc = str(cod_loc)  # Convertir a string para evitar errores
     return cod_loc[:5] if len(cod_loc) == 8 else cod_loc[:4]
@@ -325,7 +345,7 @@ centros_culturales = centros_culturales.iloc[:, [7, 8, 5, 9]].drop_duplicates()
 
 #%%
 """----------------------------------Establecimientos Educativos----------------------------------------------------"""
-# Función corregida para extraer el código de provincia
+# Función para extraer el código de provincia a partir del codigo de localidad
 def extraer_id_provincia(cod_loc):
     cod_loc = str(cod_loc)  # Convertir a string para evitar errores
     return cod_loc[:2] if len(cod_loc) == 8 else cod_loc[:1]
@@ -347,6 +367,7 @@ establecimientos_educativos["ID_DEPTO"] = establecimientos_educativos["cod_loc"]
 
 # Antes de sacar las comunas, guardamos los datos de ellas para la visualización por establecimientos educativos
 comunas_ee = establecimientos_educativos.copy()
+comunas_ee["ID_DEPTO"] = comunas_ee["cod_loc"].apply(extraer_id_depto).astype(int)
 
 # Reemplazar los valores entre 2000 y 3000 por 2000 en la columna ID_DEPTO
 departamento["ID_DEPTO"] = departamento["ID_DEPTO"].apply(lambda x: 2000 if 2000 <= x <= 3000 else x)
@@ -365,9 +386,10 @@ comunas_departamentos = comunas_departamentos.iloc[:, [3,2,1]].drop_duplicates()
 #%%
 """---------------------------------------Padrón Población----------------------------------------------------------"""
 
+# Creamos el df auxiliar area_censal 
 area_censal = padron_poblacion.iloc[:, [2, 3]].drop_duplicates()
 
-# Antes de reemplazar las comunas, guardamos los datos de ellas para la visualización por departamento
+# Antes de reemplazar las comunas, guardamos los datos de ellas para la visualización por departamento (explicado en el info)
 comunas_padron = padron_poblacion.copy().rename(columns={'Area': 'ID_DEPTO'})
 
 padron_poblacion = padron_poblacion.iloc[:, [2, 0, 1]].drop_duplicates()
@@ -654,69 +676,105 @@ ax.set_yticks([])
 
 #%%
 """------------------------------------------Ejercicio ii)----------------------------------------------------------"""
-                  
+             
 
-centros_educativos_por_departamento = dd.sql("""
+cantidad_ee_comunas = dd.sql("""
     SELECT 
-        d.ID_DEPTO, 
-        d.Departamento, 
-        COUNT(p.ID_DEPTO) AS total_ee,
-        SUM(p.Casos) AS total_poblacion,
-        SUM(CASE WHEN p.Edad BETWEEN 0 AND 5 THEN p.Casos ELSE 0 END) AS total_jardin,
-        SUM(CASE WHEN p.Edad BETWEEN 6 AND 11 THEN p.Casos ELSE 0 END) AS total_primario,
-        SUM(CASE WHEN p.Edad BETWEEN 12 AND 18 THEN p.Casos ELSE 0 END) AS total_secundario
-    FROM comunas_padron AS p
+        d.ID_PROV, d.ID_DEPTO, d.Departamento,
+        SUM(CASE WHEN "Nivel inicial - Jardín maternal" = 1 OR "Nivel inicial - Jardín de infantes" = 1 THEN 1 ELSE 0 END) AS Jardines,
+        SUM(CASE WHEN "Primario" = 1 THEN 1 ELSE 0 END) AS Primarios,
+        SUM(CASE WHEN "Secundario" = 1 OR "Secundario - INET" = 1 THEN 1 ELSE 0 END) AS Secundarios
+    FROM comunas_ee AS e
     JOIN comunas_departamentos AS d
-    ON p.ID_DEPTO = d.ID_DEPTO
+    ON e.ID_DEPTO = d.ID_DEPTO
     WHERE d.ID_DEPTO > 3000
-    GROUP BY d.ID_DEPTO, d.Departamento
+    GROUP BY d.ID_PROV, d.ID_DEPTO, d.Departamento
 
     UNION
 
     SELECT 
-        d.ID_DEPTO, 
-        d.Departamento, 
-        COUNT(p.ID_DEPTO) AS total_ee,
+        d.ID_PROV, d.ID_DEPTO, d.Departamento,
+        SUM(CASE WHEN "Nivel inicial - Jardín maternal" = 1 OR "Nivel inicial - Jardín de infantes" = 1 THEN 1 ELSE 0 END) AS Jardines,
+        SUM(CASE WHEN "Primario" = 1 THEN 1 ELSE 0 END) AS Primarios,
+        SUM(CASE WHEN "Secundario" = 1 OR "Secundario - INET" = 1 THEN 1 ELSE 0 END) AS Secundarios
+    FROM comunas_ee AS e
+    JOIN comunas_departamentos AS d
+    ON d.Departamento = e.Departamento
+    WHERE d.ID_DEPTO < 3000
+    GROUP BY d.ID_PROV, d.ID_DEPTO, d.Departamento
+""").df()
+
+        
+centros_educativos_por_departamento = dd.sql("""
+    SELECT 
+        p.ID_DEPTO, 
         SUM(p.Casos) AS total_poblacion,
+        (Jardines + Primarios + Secundarios) AS total_ee,
         SUM(CASE WHEN p.Edad BETWEEN 0 AND 5 THEN p.Casos ELSE 0 END) AS total_jardin,
         SUM(CASE WHEN p.Edad BETWEEN 6 AND 11 THEN p.Casos ELSE 0 END) AS total_primario,
         SUM(CASE WHEN p.Edad BETWEEN 12 AND 18 THEN p.Casos ELSE 0 END) AS total_secundario
     FROM comunas_padron AS p
-    JOIN comunas_departamentos AS d
-    ON p.Descripción = d.Departamento
-    WHERE d.ID_DEPTO < 3000
-    GROUP BY d.ID_DEPTO, d.Departamento
+    JOIN cantidad_ee_comunas AS c
+    ON p.ID_DEPTO = c.ID_DEPTO
+    WHERE p.ID_DEPTO > 3000
+    GROUP BY p.ID_DEPTO, Jardines, Primarios, Secundarios
+
+    UNION
+
+    SELECT 
+        p.ID_DEPTO, 
+        SUM(p.Casos) AS total_poblacion,
+        (Jardines + Primarios + Secundarios) AS total_ee,
+        SUM(CASE WHEN p.Edad BETWEEN 0 AND 5 THEN p.Casos ELSE 0 END) AS total_jardin,
+        SUM(CASE WHEN p.Edad BETWEEN 6 AND 11 THEN p.Casos ELSE 0 END) AS total_primario,
+        SUM(CASE WHEN p.Edad BETWEEN 12 AND 18 THEN p.Casos ELSE 0 END) AS total_secundario
+    FROM comunas_padron AS p
+    JOIN cantidad_ee_comunas AS c
+    ON p.Descripción = c.Departamento
+    WHERE p.ID_DEPTO < 3000
+    GROUP BY p.ID_DEPTO, Jardines, Primarios, Secundarios
 """).df()
 
 
 
 
-fig, ax = plt.subplots()  # Crear la figura
 
+
+# Crear la figura y los ejes
+fig, ax = plt.subplots(figsize=(10, 6))
+
+# Configurar estilos
 plt.rcParams['font.family'] = 'sans-serif'
 
 # Graficar cada nivel educativo con colores distintos
 ax.scatter(
+    centros_educativos_por_departamento['total_poblacion'],
     centros_educativos_por_departamento['total_jardin'],
-    centros_educativos_por_departamento['total_ee'],
-    s=1, color="blue", label="Jardín"
+    s=10, color="green", label="Jardín"
 )
 
 ax.scatter(
+    centros_educativos_por_departamento['total_poblacion'],
     centros_educativos_por_departamento['total_primario'],
-    centros_educativos_por_departamento['total_ee'],
-    s=1, color="green", label="Primario"
+    s=10, color="blue", label="Primario"
 )
 
 ax.scatter(
+    centros_educativos_por_departamento['total_poblacion'],
     centros_educativos_por_departamento['total_secundario'],
-    centros_educativos_por_departamento['total_ee'],
-    s=1, color="red", label="Secundario"
+    s=10, color="red", label="Secundario"
 )
 
 # Configurar título y etiquetas 
-ax.set_xlabel('Cantidad de habitantes (Millones)', fontsize='medium')  
-ax.set_ylabel('Cantidad de Escuelas', fontsize='medium')  
+ax.set_xlabel('Cantidad de habitantes', fontsize='medium')  
+ax.set_ylabel('Cantidad de Establecimientos Educativos por nivel', fontsize='medium')  
+
+# Agregar la leyenda para identificar los colores
+ax.legend(title="Nivel Educativo", loc="upper left")
+
+# Configurar los cortes del eje X
+# ax.set_xticks(np.arange(0, centros_educativos_por_departamento['total_poblacion'].max() + 2000000, 5000000))
+
 
 #%%
 
@@ -787,100 +845,107 @@ plt.subplots_adjust(top=0.9)
 #%%            
 """------------------------------------------Ejercicio iv)-----------------------------------------------------------"""           
 
+proporciones = ejercicio_iii.copy()
 
-ejercicio_iii = ejercicio_iii.sort_values('poblacion')
+# Agregamos las proporciones correctas al DataFrame
+proporciones["proporcion_ee_1000_hab"] = (proporciones["ee_por_depto"] / proporciones["poblacion"]) * 1000
+proporciones["proporcion_cc_1000_hab"] = (proporciones["cc_por_depto"] / proporciones["poblacion"]) * 1000
 
-# Asegurarse de que ambas columnas tengan la misma cantidad de datos
-fig, ax = plt.subplots()
+# Reemplazamos NaN por 0 en caso de divisiones por 0
+ejercicio_iii.fillna(0, inplace=True)
 
-# Factor de escala para la línea naranja
-factor_escala = 10  
+# Ordenamos el proporciones por población para una mejor visualización
+proporciones = ejercicio_iii.sort_values("poblacion")
 
-ax.plot(ejercicio_iii["poblacion"], 
-        ejercicio_iii["proporcion_ee_1000_hab"], 
-        marker='.', 
-        label='proporcion_ee_1000_hab')
-
-ax.plot(ejercicio_iii["poblacion"], 
-        ejercicio_iii["proporcion_cc_1000_hab"] * factor_escala, 
-        marker='.', 
-        label=f'proporcion_cc_1000_hab (x{factor_escala})')
-
-ax.set_title('Proporción EE y proporción CC vs población por deptos')
-ax.set_xlabel('Población')
-ax.set_ylabel('Proporción por 1000 hab')
-
-
-
-
-######
 
 ejercicio_iii_por_prov = dd.sql("""
-SELECT *
-FROM ejercicio_iii_por_prov
-ORDER BY poblacion""").df()
+                                    SELECT Provincia, sum(ee_por_depto) as ee_por_prov, sum(cc_por_depto) as cc_por_prov, sum(poblacion) as poblacion
+                                    FROM ejercicio_iii
+                                    GROUP BY Provincia
+""").df()
+
+proporciones = ejercicio_iii.sort_values('poblacion')
 
 
-fig, ax = plt.subplots()
-ax.plot('poblacion', 'proporcion_ee_1000_hab', data = ejercicio_iii_por_prov, marker = '.')
-ax.plot('poblacion', 'proporcion_cc_1000_hab', data = ejercicio_iii_por_prov, marker = '.')
-ax.set_title('Proporción EE y proporcion cc vs poblacion por provincias')
-ax.set_xlabel('Población')
-ax.set_ylabel('Proporción por 1000 hab')
-ax.legend()
-plt.show()
+## Graficamos
 
-#%% Prueba seborn
-# Configurar el tamaño del gráfico
+# Preparar los datos para el gráfico
+proporciones["Provincia"] = proporciones["Provincia"].str.title()  # Capitalizar nombres de provincias
+
+proporciones["Provincia"] = proporciones["Provincia"].replace({
+    "Tierra Del Fuego, Antártida E Islas Del Atlántico Sur": "Tierra del Fuego",
+    "Ciudad Autónoma De Buenos Aires": "Caba"
+})
+
+# Reestructurar el DataFrame para Seaborn
+df_melted = proporciones.melt(id_vars=["Provincia"],
+                              value_vars=["proporcion_ee_1000_hab", "proporcion_cc_1000_hab"],
+                              var_name="Tipo",
+                              value_name="Proporción")
+
+# Crear el gráfico de barras agrupadas
 plt.figure(figsize=(12, 6))
+sns.barplot(data=df_melted, x="Provincia", y="Proporción", hue="Tipo", palette=["blue", "orange"], errorbar=None)
 
-# Reestructurar el DataFrame para seaborn
-df_melted = ejercicio_iii_por_prov.melt(id_vars=["Provincia"], 
-                                        value_vars=["proporcion_ee_1000_hab", "proporcion_cc_1000_hab"],
-                                        var_name="Tipo", 
-                                        value_name="Proporcion")
-
-# Crear el gráfico de barras superpuestas
-sns.barplot(data=df_melted, x="Provincia", y="Proporcion", hue="Tipo", palette=["blue", "orange"])
-
-# Rotar etiquetas en el eje x para mejor visualización
+# Rotar etiquetas en el eje X para mejor visualización
 plt.xticks(rotation=90)
 
 # Agregar títulos y etiquetas
-plt.title("Proporción EE y CC por 1000 habitantes por provincia")
+plt.title("Proporción de EE y CC cada 1000 habitantes por provincia")
 plt.xlabel("Provincia")
 plt.ylabel("Proporción por 1000 habitantes")
+
+plt.xticks(rotation=-60, fontsize=8)  # Ajusta el ángulo y el tamaño de las etiquetas
+plt.yticks(fontsize=8)
+plt.tight_layout()  # Ajusta el gráfico para que no se solape
+
+
+# Mostrar la leyenda correctamente
+plt.legend(title="Tipo de Establecimiento", labels=["EE cada 1000 hab", "CC cada 1000 hab"])
 
 # Mostrar el gráfico
 plt.show()
 
-#%% Prueba 2 seaborn
+#%% Con factor escalante
 
-# Definir el factor de escala para las barras naranjas
-factor_escala = 10
+# Definir el factor de escala
+factor_escala_cc = 20  # Puedes ajustar este valor según lo necesites
 
-# Crear una copia del DataFrame y escalar la columna de 'proporcion_cc_1000_hab'
-df_escalado = ejercicio_iii_por_prov.copy()
-df_escalado["proporcion_cc_1000_hab"] *= factor_escala
+# Preparar los datos para el gráfico
+proporciones["Provincia"] = proporciones["Provincia"].str.title()  # Capitalizar nombres de provincias
 
-# Reestructurar el DataFrame para seaborn
-df_melted = df_escalado.melt(id_vars=["Provincia"], 
-                             value_vars=["proporcion_ee_1000_hab", "proporcion_cc_1000_hab"],
-                             var_name="Tipo", 
-                             value_name="Proporcion")
+proporciones["Provincia"] = proporciones["Provincia"].replace({
+    "Tierra Del Fuego, Antártida E Islas Del Atlántico Sur": "Tierra del Fuego",
+    "Ciudad Autónoma De Buenos Aires": "Caba"
+})
 
-# Crear el gráfico de barras superpuestas
+# Reestructurar el DataFrame para Seaborn
+df_melted = proporciones.melt(id_vars=["Provincia"],
+                              value_vars=["proporcion_ee_1000_hab", "proporcion_cc_1000_hab"],
+                              var_name="Tipo",
+                              value_name="Proporción")
+
+# Aplicar el factor de escala SOLO en el gráfico (sin modificar el DataFrame)
+df_melted.loc[df_melted["Tipo"] == "proporcion_cc_1000_hab", "Proporción"] *= factor_escala_cc
+
+# Crear el gráfico de barras agrupadas
 plt.figure(figsize=(12, 6))
-sns.barplot(data=df_melted, x="Provincia", y="Proporcion", hue="Tipo", palette=["blue", "orange"])
+sns.barplot(data=df_melted, x="Provincia", y="Proporción", hue="Tipo", palette=["blue", "orange"], errorbar=None)
 
-# Rotar etiquetas en el eje x para mejor visualización
-plt.xticks(rotation=90)
+# Rotar etiquetas en el eje X para mejor visualización
+plt.xticks(rotation=-50, fontsize=8)  # Ajusta el ángulo y el tamaño de las etiquetas
+plt.yticks(fontsize=8)
+plt.tight_layout()  # Ajusta el gráfico para que no se solape
 
 # Agregar títulos y etiquetas
-plt.title("Proporción EE y CC por 1000 habitantes por provincia (CC escalado x{})".format(factor_escala))
+plt.title("Proporción de EE y CC cada 1000 habitantes por provincia")
 plt.xlabel("Provincia")
 plt.ylabel("Proporción por 1000 habitantes")
 
+# Mostrar la leyenda correctamente con el factor de escala indicado
+plt.legend(title="Tipo de Establecimiento", labels=["EE cada 1000 hab", f"CC cada 1000 hab (x{factor_escala_cc})"])
+
 # Mostrar el gráfico
 plt.show()
+
 
