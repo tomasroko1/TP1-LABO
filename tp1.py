@@ -12,6 +12,8 @@ import duckdb as dd
 import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import r2_score
 
 #%%   Cargamos los archivos
 
@@ -776,7 +778,32 @@ ax.legend(title="Nivel Educativo", loc="upper left")
 
 fig.savefig('ii')
 
-#%%
+#%% R2
+
+# Definimos x e y para cada nivel
+X = centros_educativos_por_departamento['total_poblacion'].values.reshape(-1, 1)
+
+Y_jardin = centros_educativos_por_departamento['total_jardin'].values
+Y_primario = centros_educativos_por_departamento['total_primario'].values
+Y_secundario = centros_educativos_por_departamento['total_secundario'].values
+
+# calculamos el r2 de cada nivel
+def calcular_r2(X, Y):
+    modelo = LinearRegression()
+    modelo.fit(X, Y)
+    return r2_score(Y, modelo.predict(X))
+
+# Calcular R^2 para cada caso
+r2_jardin = calcular_r2(X, Y_jardin)
+r2_primario = calcular_r2(X, Y_primario)
+r2_secundario = calcular_r2(X, Y_secundario)
+
+# Mostrar resultados
+print(f"R2 Jardín: {r2_jardin:.4f}")
+print(f"R2 Primario: {r2_primario:.4f}")
+print(f"R2 Secundario: {r2_secundario:.4f}")
+
+#%% Gráficos EE y Población por provincias
 
 cantidad_ee_por_provincia = dd.sql(
             """
@@ -833,11 +860,13 @@ sns.boxplot(x='Provincia',
             y='ee_por_depto',
             data=ee_por_depto_prov_comunas,
             ax=ax,
-            showmeans=True)
+            showmeans=True,
+            order = ee_por_depto_prov_comunas.groupby('Provincia')['ee_por_depto'].median().sort_values().index)
 
 ax.set_xticklabels(ax.get_xticklabels(), rotation=-60, fontsize=8, ha='left')
 
 ax.set_ylabel('Cantidad de Establecimientos Educativos por Departamento', fontsize=10)
+ax.set_title(' ')
 plt.tight_layout()
 plt.subplots_adjust(top=0.9)  
 
@@ -940,3 +969,8 @@ plt.ylabel("Proporción por 1000 habitantes")
 plt.legend(title="Tipo de Establecimiento", labels=["EE cada 1000 hab", f"CC cada 1000 hab (x{factor_escala_cc})"])
 
 fig.savefig('iv con factor escala 20 para CC')
+
+#%%
+
+
+
