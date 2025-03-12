@@ -725,7 +725,7 @@ cantidad_ee_comunas = dd.sql("""
     GROUP BY d.ID_PROV, d.ID_DEPTO, d.Departamento
 """).df()
 
-# El siguiente dataset tiene más datos de los que son usados inmediatamente para el primer gráfico, pero que usamos posteriormente        
+# El siguiente dataset tiene más datos de los que son usados inmediatamente para el primer gráfico, pero que usamos posteriormente para ver otra relación       
 
 centros_educativos_por_departamento = dd.sql("""
     SELECT 
@@ -763,22 +763,30 @@ fig, ax = plt.subplots(figsize=(10, 6))
 
 plt.rcParams['font.family'] = 'sans-serif'
 
+# Definimos una paleta colorblind :)
+palette = sns.color_palette("colorblind", n_colors=20)
+
+# Asignamos cada color a una variable
+color_jardin     = 'black'       # palette[17]  # naranjita
+color_primario   = palette[0]  # azul
+color_secundario = palette[11]  # naranja
+
 ax.scatter(
     centros_educativos_por_departamento['total_poblacion'],
     centros_educativos_por_departamento['Jardines'],
-    s=10, color="green", label="Jardín"
+    s=6, color=color_jardin, alpha = 0.5, label="Jardín"
 )
 
 ax.scatter(
     centros_educativos_por_departamento['total_poblacion'],
     centros_educativos_por_departamento['Primarios'],
-    s=10, color="blue", label="Primario"
+    s=6, color=color_primario, alpha = 0.47, label="Primario"
 )
 
 ax.scatter(
     centros_educativos_por_departamento['total_poblacion'],
     centros_educativos_por_departamento['Secundarios'],
-    s=10, color="red", label="Secundario"
+    s=6, color=color_secundario, alpha = 0.44, label="Secundario"
 )
 
 ax.set_xlabel('Cantidad de habitantes', fontsize='medium')  
@@ -853,21 +861,21 @@ fig, ax = plt.subplots(figsize=(10, 6))
 plt.rcParams['font.family'] = 'sans-serif'
 
 ax.scatter(
+    centros_educativos_por_departamento['total_poblacion'],
     centros_educativos_por_departamento['total_jardin'],
-    centros_educativos_por_departamento['Jardines'],
-    s=10, color="green", label="Jardín"
+    s=10, color=color_jardin, label="Jardín"
 )
 
 ax.scatter(
+    centros_educativos_por_departamento['total_poblacion'],
     centros_educativos_por_departamento['total_primario'],
-    centros_educativos_por_departamento['Primarios'],
-    s=10, color="blue", label="Primario"
+    s=10, color=color_primario, label="Primario"
 )
 
 ax.scatter(
+    centros_educativos_por_departamento['total_poblacion'],
     centros_educativos_por_departamento['total_secundario'],
-    centros_educativos_por_departamento['Secundarios'],
-    s=10, color="red", label="Secundario"
+    s=10, color=color_secundario, label="Secundario"
 )
 
 ax.set_xlabel('Cantidad de habitantes', fontsize='medium')  
@@ -1091,7 +1099,151 @@ fig.savefig('iv con factor escala 20 para CC')
 
 #%%
 """ 
-                                     ###############################################################
-                                     #####  Muchas gracias y perdón por este desorden final :) ##### 
-                                     ###############################################################
+                                         ##############################
+                                         #####  Muchas gracias :) ##### 
+                                         ##############################
 """
+#%%
+
+"""
+Scatterplot simple
+"""
+
+# Filtramos los valores donde ambos sean mayores a 0
+proporciones_filtradas = proporciones[
+    (proporciones["proporcion_cc_1000_hab"] > 0) & (proporciones["proporcion_ee_1000_hab"] > 0)
+]
+
+# Extraemos las variables
+x = proporciones_filtradas["proporcion_cc_1000_hab"]
+y = proporciones_filtradas["proporcion_ee_1000_hab"]
+poblacion = proporciones_filtradas["poblacion"]
+
+# Creamos la figura
+plt.figure(figsize=(10, 6))
+
+# Scatter plot con tamaño basado en la población
+plt.scatter(x, y, alpha=0.9, color="royalblue", edgecolors="black", linewidth=0.5)
+
+# Ajuste estético
+plt.grid(True, linestyle="--", alpha=0.5)
+plt.tight_layout()
+
+# Etiquetas y título
+plt.xlabel("Cantidad de CC cada 1000 habitantes", fontsize=12, labelpad=10)
+plt.ylabel("Cantidad de EE cada 1000 habitantes", fontsize=12, labelpad=10)
+
+# Guardamos la figura
+plt.savefig('iv_relacion_cc_ee_sin_ceros_poblacion.png')
+
+# Mostramos el gráfico
+plt.show()
+
+#%%
+
+"""
+Veamos si separando por c/habitantes notamos algo más
+"""
+
+# Filtramos los valores donde ambos sean mayores a 0
+proporciones_filtradas = proporciones[
+    (proporciones["proporcion_cc_1000_hab"] > 0) & (proporciones["proporcion_ee_1000_hab"] > 0)
+]
+
+# Extraemos las variables
+x = proporciones_filtradas["proporcion_cc_1000_hab"]
+y = proporciones_filtradas["proporcion_ee_1000_hab"]
+poblacion = proporciones_filtradas["poblacion"]
+
+# Definimos los cuartiles de la población para separar los grupos
+q1, q2, q3 = np.percentile(poblacion, [25, 50, 75])
+
+# Creamos el layout 2x2
+fig, axs = plt.subplots(2, 2, figsize=(12, 10), sharex=True, sharey=True)
+
+# Definimos colores para cada grupo
+colores = ["lightblue", "dodgerblue", "royalblue", "midnightblue"]
+titulos = ["Baja población", "Media-baja población", "Media-alta población", "Alta población"]
+rangos = [
+    (poblacion <= q1),
+    ((poblacion > q1) & (poblacion <= q2)),
+    ((poblacion > q2) & (poblacion <= q3)),
+    (poblacion > q3)
+]
+
+# Iteramos sobre los subgráficos
+for ax, rango, color, titulo in zip(axs.flat, rangos, colores, titulos):
+    ax.scatter(x[rango], y[rango], color=color, alpha=0.6)
+    ax.set_title(titulo, fontsize=12)
+    ax.grid(True, linestyle="--", alpha=0.5)
+
+# Etiquetas en los ejes
+for ax in axs[:, 0]:
+    ax.set_ylabel("EE cada 1000 hab", fontsize=12)
+
+for ax in axs[1, :]:
+    ax.set_xlabel("CC cada 1000 hab", fontsize=12)
+
+# Ajuste de layout
+plt.tight_layout()
+
+# Guardamos la figura
+plt.savefig('iv_relacion_cc_ee_separado_por_poblacion.png')
+
+#%%
+
+# Filtramos los valores donde ambos sean mayores a 0
+proporciones_filtradas = proporciones[
+    (proporciones["proporcion_cc_1000_hab"] > 0) & (proporciones["proporcion_ee_1000_hab"] > 0)
+]
+
+# Extraemos las variables
+x = proporciones_filtradas["proporcion_cc_1000_hab"]
+y = proporciones_filtradas["proporcion_ee_1000_hab"]
+poblacion = proporciones_filtradas["poblacion"]
+
+# Definimos los cuartiles de la población para separar los grupos
+q1, q2, q3 = np.percentile(poblacion, [25, 50, 75])
+
+# Definimos los rangos de población
+rangos = {
+    "Baja población": poblacion <= q1,
+    "Media-baja población": (poblacion > q1) & (poblacion <= q2),
+    "Media-alta población": (poblacion > q2) & (poblacion <= q3),
+    "Alta población": poblacion > q3
+}
+
+# Creamos una figura con 2 filas y 2 columnas
+fig, axs = plt.subplots(2, 2, figsize=(12, 10))
+
+# Color único para todos los gráficos
+color = "midnightblue"
+
+# Iteramos sobre cada subgráfico y rango de población
+for ax, (titulo, filtro) in zip(axs.flat, rangos.items()):
+    x_filtro = x[filtro]
+    y_filtro = y[filtro]
+
+    # Scatter plot en la subfigura correspondiente
+    ax.scatter(x_filtro, y_filtro, color=color, alpha=0.6)
+
+    # Ajustamos los límites de los ejes individualmente
+    ax.set_xlim(0, x_filtro.max() * 1.1 if not x_filtro.empty else 0.01)
+    ax.set_ylim(0, y_filtro.max() * 1.1 if not y_filtro.empty else 0.01)
+
+    # Etiquetas y título
+    ax.set_xlabel("CC cada 1000 hab", fontsize=10)
+    ax.set_ylabel("EE cada 1000 hab", fontsize=10)
+    ax.set_title(titulo, fontsize=12)
+
+    # Grid para mejor lectura
+    ax.grid(True, linestyle="--", alpha=0.6)
+
+# Ajustamos el diseño para que no se solapen los gráficos
+plt.tight_layout()
+
+# Guardamos la figura con los 4 gráficos juntos
+plt.savefig('iv_relacion_cc_ee_4juntos.png')
+
+# Mostramos el gráfico con los 4 plots juntos
+plt.show()
