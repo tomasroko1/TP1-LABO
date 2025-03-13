@@ -704,7 +704,7 @@ cantidad_ee_comunas = dd.sql("""
         d.ID_PROV, d.ID_DEPTO, d.Departamento,
         SUM(CASE WHEN "Nivel inicial - Jardín maternal" = 1 OR "Nivel inicial - Jardín de infantes" = 1 THEN 1 ELSE 0 END) AS Jardines,
         SUM(CASE WHEN "Primario" = 1 THEN 1 ELSE 0 END) AS Primarios,
-        SUM(CASE WHEN "Secundario" = 1 OR "Secundario - INET" = 1 THEN 1 ELSE 0 END) AS Secundarios
+        SUM("Secundario" + "Secundario - INET") AS Secundarios
     FROM comunas_ee AS e
     JOIN comunas_departamentos AS d
     ON e.ID_DEPTO = d.ID_DEPTO
@@ -717,7 +717,7 @@ cantidad_ee_comunas = dd.sql("""
         d.ID_PROV, d.ID_DEPTO, d.Departamento,
         SUM(CASE WHEN "Nivel inicial - Jardín maternal" = 1 OR "Nivel inicial - Jardín de infantes" = 1 THEN 1 ELSE 0 END) AS Jardines,
         SUM(CASE WHEN "Primario" = 1 THEN 1 ELSE 0 END) AS Primarios,
-        SUM(CASE WHEN "Secundario" = 1 OR "Secundario - INET" = 1 THEN 1 ELSE 0 END) AS Secundarios
+        SUM("Secundario" + "Secundario - INET") AS Secundarios
     FROM comunas_ee AS e
     JOIN comunas_departamentos AS d
     ON d.Departamento = e.Departamento
@@ -787,66 +787,6 @@ ax.scatter(
     centros_educativos_por_departamento['total_poblacion'],
     centros_educativos_por_departamento['Secundarios'],
     s=10, color=color_secundario, alpha = 0.54, label="Secundario"
-)
-
-ax.set_xlabel('Cantidad de habitantes', fontsize='medium')  
-ax.set_ylabel('Cantidad de Establecimientos Educativos por nivel', fontsize='medium')  
-ax.legend(title="Nivel Educativo", loc="upper left")
-
-fig.savefig('ii')
-#%% Orden de colores 2
-
-fig, ax = plt.subplots(figsize=(10, 6))
-
-plt.rcParams['font.family'] = 'sans-serif'
-
-
-ax.scatter(
-    centros_educativos_por_departamento['total_poblacion'],
-    centros_educativos_por_departamento['Primarios'],
-    s=10, color="blue", label="Primario"
-)
-
-ax.scatter(
-    centros_educativos_por_departamento['total_poblacion'],
-    centros_educativos_por_departamento['Secundarios'],
-    s=10, color="red", label="Secundario"
-)
-
-ax.scatter(
-    centros_educativos_por_departamento['total_poblacion'],
-    centros_educativos_por_departamento['Jardines'],
-    s=10, color="green", label="Jardín"
-)
-
-
-ax.set_xlabel('Cantidad de habitantes', fontsize='medium')  
-ax.set_ylabel('Cantidad de Establecimientos Educativos por nivel', fontsize='medium')  
-ax.legend(title="Nivel Educativo", loc="upper left")
-
-#%% Orden de colores 3
-
-fig, ax = plt.subplots(figsize=(10, 6))
-
-plt.rcParams['font.family'] = 'sans-serif'
-
-
-ax.scatter(
-    centros_educativos_por_departamento['total_poblacion'],
-    centros_educativos_por_departamento['Secundarios'],
-    s=10, color="red", label="Secundario"
-)
-
-ax.scatter(
-    centros_educativos_por_departamento['total_poblacion'],
-    centros_educativos_por_departamento['Jardines'],
-    s=10, color="green", label="Jardín"
-)
-
-ax.scatter(
-    centros_educativos_por_departamento['total_poblacion'],
-    centros_educativos_por_departamento['Primarios'],
-    s=10, color="blue", label="Primario"
 )
 
 ax.set_xlabel('Cantidad de habitantes', fontsize='medium')  
